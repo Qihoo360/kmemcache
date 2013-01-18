@@ -1,0 +1,61 @@
+===================================================    
+	      what is kmemcache?
+===================================================
+kmemcache is a high-performance, distributed memory
+object caching system, generic in nature, but intended
+for use in speeding up dynamic web applications by
+alleviating database load.
+kmemcache is derived from memcached-v1.4.15, exactly
+it is a linux kernel memcached, and aims at
+quicker response and higher performance.
+
+===================================================    
+	            env.
+===================================================
+linux kernel 2.6.35
+x86_32/x86_64
+
+===================================================    
+	            install
+===================================================
+$ tar xzf kmemcache.tar.bz2
+$ cd kmemcache
+$ make & make install
+
+===================================================    
+	             run
+===================================================
+$ cd /usr/local/kmemcache
+$ insmod connector.ko
+$ ./umemcached -h
+$ ./umemcached
+$ insmod kmemcache.ko
+
+===================================================    
+	            test 
+===================================================
+$ apt-get install libmemcached
+$ memslap --servers=localhost:11211
+$ memdump --servers=localhost:11211
+
+refer to "more info"
+
+===================================================    
+	           hacking  
+===================================================
+enable "CONFIG_DEBUG=y" in kmod/Makefile, 
+$ insmod kmod/kmodhelper.ko
+$ insmod kmod/connector.ko
+$ ./user/umemcached
+$ insmod kmod/kmemcache.ko
+$ kgdb/gdb
+$ cat /proc/kmodhelper/delay
+$ echo 1 > /proc/kmodhelper/delay
+enjoy!
+
+===================================================    
+	         more info
+===================================================
+http://www.memcached.org/
+http://libmemcached.org/libMemcached.html
+
