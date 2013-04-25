@@ -354,12 +354,8 @@ static void mc_worker_state_change(struct sock *sk)
 	switch (sk->sk_state) {
 	case TCP_CLOSE:
 		PRINFO("state_change: TCP_CLOSE");
-		break;
 	case TCP_CLOSE_WAIT:
 		PRINFO("state_change: TCP_CLOSE_WAIT");
-		break;
-	case TCP_ESTABLISHED:
-		PRINFO("state_change: TCP_ESTABLISHED");
 		mc_queue_conn(c);
 		break;
 	}

@@ -16,6 +16,7 @@
 #include "mc.h"
 
 struct dispatcher_thread dispatcher;
+struct kmem_cache *listen_cachep;
 
 void mc_accept_new_conns(int enable)
 {
@@ -53,7 +54,7 @@ static void mc_sock_work(struct work_struct *work)
 	int ret = 0;
 	struct socket *nsock;
 	struct serve_sock *ss =
-		container_of(work, struct serve_sock, work);
+		(container_of(work, struct server_work, work))->ss;
 
 	ret = kernel_accept(ss->sock, &nsock, O_NONBLOCK);
 	if (ret) {
@@ -110,9 +111,25 @@ static void inline _queue(struct serve_sock *ss)
 		PRINTK("server socket closing");
 		return;
 	}
-	if (!queue_work(dispatcher.wq, &ss->work)) {
-		PRINTK(" a new socket already queued");
+#ifdef CONFIG_LISTEN_CACHE
+	{
+		struct server_work *sw =
+			kmem_cache_alloc(listen_cachep, GFP_ATOMIC);
+		if (!sw) {
+			PRINTK(" alloc new work_struct error");
+			return;
+		}
+		sw->ss = ss;
+		INIT_WORK(&sw->work, mc_sock_work);
+		queue_work(dispatcher.wq, &sw->work);
 	}
+#else
+	{
+		if (!queue_work(dispatcher.wq, &ss->work)) {
+			PRINTK(" a new socket already queued");
+		}
+	}
+#endif
 }
 
 /*
@@ -124,7 +141,7 @@ static void mc_disp_data_ready(struct sock *sk, int unused)
 {
 	struct serve_sock *ss = 
 		(struct serve_sock *)sk->sk_user_data;
-	if (sk->sk_state != TCP_CLOSE_WAIT)
+	if (sk->sk_state == TCP_LISTEN)
 		_queue(ss);
 	PRINFO("mc_disp_data_ready");
 }
@@ -148,8 +165,8 @@ static void set_sock_callbacks(struct socket *sock,
 
 	sk->sk_user_data    = ss;
 	sk->sk_data_ready   = mc_disp_data_ready;
-	sk->sk_write_space  = mc_disp_write_space;
-	sk->sk_state_change = mc_disp_state_change;
+	//sk->sk_write_space  = mc_disp_write_space;
+	//sk->sk_state_change = mc_disp_state_change;
 }
 
 static int INIT _log_socket_port(struct file *filp, const char *buf, size_t count)

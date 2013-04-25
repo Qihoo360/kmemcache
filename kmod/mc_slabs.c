@@ -60,11 +60,23 @@ static int mc_do_slabs_newslab(unsigned int id);
 
 static void *mc_memory_allocate(size_t size)
 {
-	void *ret;
+	void *ret = NULL;
 
 	if (mem_base == NULL) {
 		/* not use a preallocated large memory chunk */
+#ifdef CONFIG_BUFFER_CACHE
+		ret = kmem_cache_alloc(buffer_cachep, GFP_KERNEL);
+		if (likely(ret)) {
+			if (alloc_buffer(ret, size)) {
+				kmem_cache_free(buffer_cachep, ret);
+				ret = NULL;
+			} else {
+				BUFFER_PTR((struct buffer *)ret, ret);
+			}
+		}
+#else
 		ret = vmalloc(size);
+#endif
 	} else {
 		ret = mem_current;
 

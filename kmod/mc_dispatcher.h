@@ -56,6 +56,15 @@ typedef struct {
 } parser_sock_t;
 extern parser_sock_t *sock_info;
 
+#ifdef CONFIG_LISTEN_CACHE
+struct server_work {
+	struct work_struct work;
+	struct serve_sock *ss;
+};
+
+extern struct kmem_cache *listen_cachep;
+#endif
+
 void	mc_accept_new_conns(int enable);
 int	dispatcher_init(void);
 void	dispatcher_exit(void);

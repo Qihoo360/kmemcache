@@ -152,6 +152,22 @@ static struct cache_info {
 	size_t size;
 	void (*ctor)(void *);
 } caches_info[] = {
+#ifdef CONFIG_BUFFER_CACHE
+	{
+		.cachep = &buffer_cachep,
+		.name	= "mc_buffer_cache",
+		.size	= sizeof(struct buffer),
+		.ctor	= NULL
+	},
+#endif
+#ifdef CONFIG_LISTEN_CACHE
+	{
+		.cachep = &listen_cachep,
+		.name	= "mc_listen_cache",
+		.size	= sizeof(struct server_work),
+		.ctor	= NULL
+	},
+#endif
 	{
 		.cachep	= &prefix_cachep,
 		.name	= "mc_prefix_cache",

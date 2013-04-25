@@ -5,11 +5,12 @@
 #include <linux/mm.h>
 #include <linux/gfp.h>
 #include <linux/pagemap.h>
+#include <linux/slab.h>
 
 #ifdef CONFIG_X86_32
 #define GFP_PAGES GFP_KERNEL
 #else
-#define GFP_PAGES GFP_NOFS
+#define GFP_PAGES GFP_KERNEL
 #endif
 
 #define BUF_NEGATIVE	0
@@ -94,6 +95,10 @@ struct buffer {
 		_buf = BUFFER(buf);		\
 		(ptr) = (typeof(*(ptr)) *)_buf;	\
 	} while (0)
+
+#ifdef CONFIG_BUFFER_CACHE
+extern struct kmem_cache *buffer_cachep;
+#endif
 
 extern int alloc_buffer(struct buffer *buf, size_t len);
 extern int realloc_buffer(struct buffer *buf, size_t len, size_t valid);

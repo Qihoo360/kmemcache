@@ -5,6 +5,10 @@
 
 #include "mc.h"
 
+#ifdef CONFIG_BUFFER_CACHE
+struct kmem_cache *buffer_cachep;
+#endif
+
 #ifdef CONFIG_PAGES_CACHE
 
 #define MAX_RETRY	2
