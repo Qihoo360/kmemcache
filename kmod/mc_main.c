@@ -268,26 +268,26 @@ static int INIT _kmemcache_init(void)
 		PRINTK("init slabs error");
 		goto del_stats;
 	}
-	if ((ret = assoc_init(settings.hashpower_init))) {
-		PRINTK("init assoc error");
+	if ((ret = hash_init(settings.hashpower_init))) {
+		PRINTK("init hashtable error");
 		goto del_slabs;
 	}
 	if ((ret = dispatcher_init())) {
 		PRINTK("init dispatcher error");
-		goto del_assoc;
+		goto del_hash;
 	}
 	if ((ret = workers_init())) {
 		PRINTK("init workers error");
 		goto del_dispatcher;
 	}
-	if ((ret = start_assoc_thread())) {
-		PRINTK("init assoc kthread error");
+	if ((ret = start_hash_thread())) {
+		PRINTK("init hashtable kthread error");
 		goto del_workers;
 	}
 	if (settings.slab_reassign &&
 	    (ret = start_slab_thread())) {
 		PRINTK("init slab kthread error");
-		goto del_assoc_thread;
+		goto del_hash_thread;
 	}
 	if ((ret = timer_init())) {
 		PRINTK("init timer error");
@@ -310,14 +310,14 @@ del_timer:
 del_slab_thread:
 	if (settings.slab_reassign)
 		stop_slab_thread();
-del_assoc_thread:
-	stop_assoc_thread();
+del_hash_thread:
+	stop_hash_thread();
 del_workers:
 	workers_exit();
 del_dispatcher:
 	dispatcher_exit();
-del_assoc:
-	assoc_exit();
+del_hash:
+	hash_exit();
 del_slabs:
 	slabs_exit();
 del_stats:
@@ -362,10 +362,10 @@ static void EXIT kmemcache_exit(void)
 	timer_exit();
 	if (settings.slab_reassign)
 		stop_slab_thread();
-	stop_assoc_thread();
+	stop_hash_thread();
 	workers_exit();
 	dispatcher_exit();
-	assoc_exit();
+	hash_exit();
 	slabs_exit();
 	stats_exit();
 	caches_info_exit();

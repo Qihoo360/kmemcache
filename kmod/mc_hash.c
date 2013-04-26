@@ -108,8 +108,8 @@ and these came close:
 #if HASH_LITTLE_ENDIAN == 1
 u32 hash(
   const void *key,       /* the key to hash */
-  size_t      length,    /* length of the key */
-  const u32    initval)   /* initval */
+  u32      length,    /* length of the key */
+  u32    initval)   /* initval */
 {
   u32 a,b,c;                                          /* internal state */
   union { const void *ptr; size_t i; } u;     /* needed for Mac Powerbook G4 */
@@ -287,7 +287,7 @@ u32 hash(
  * from hashlittle() on all machines.  hashbig() takes advantage of
  * big-endian byte ordering.
  */
-u32 hash( const void *key, size_t length, const u32 initval)
+u32 hash( const void *key, u32 length, u32 initval)
 {
   u32 a,b,c;
   union { const void *ptr; size_t i; } u; /* to cast key to (size_t) happily */

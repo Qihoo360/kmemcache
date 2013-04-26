@@ -42,7 +42,7 @@ kmemcache-y :=	mc_strops.o	\
 		mc_hash.o	\
 		mc_slabs.o	\
 	       	mc_items.o	\
-		mc_assoc.o	\
+		mc_hashtable.o	\
 		mc_stats.o	\
 		mc_main.o	\
 		mc_worker.o	\

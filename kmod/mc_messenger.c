@@ -325,7 +325,7 @@ static void mc_worker_data_ready(struct sock *sk, int unused)
 {
 	conn *c = sk->sk_user_data;
 
-	if (sk->sk_state != TCP_CLOSE_WAIT && test_bit(EV_READ, &c->event)) {
+	if (sk->sk_state != TCP_CLOSE_WAIT) {
 		PRINFO("data_ready %p state=%d, queueing work",
 		       c, sk->sk_state);
 		mc_queue_conn(c);
@@ -337,7 +337,7 @@ static void mc_worker_write_space(struct sock *sk)
 {
 	conn *c = sk->sk_user_data;
 
-	if (test_bit(EV_WRITE, &c->event)) {
+	if (sk->sk_state != TCP_CLOSE_WAIT) {
 		PRINFO("write_space on %p, queueing work", c);
 		mc_queue_conn(c);
 	}

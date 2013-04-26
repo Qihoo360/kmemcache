@@ -357,18 +357,18 @@ item*	mc_do_item_touch(const char *key, size_t nkey, u32 exptime, u32 hv);
 void	mc_item_stats_reset(void);
 void	mc_item_stats_evictions(u64 *evicted);
 
-/* mc_assoc.c */
-int	assoc_init(int hashpower_init);
-void	assoc_exit(void);
-item*	mc_assoc_find(const char *key, size_t nkey, u32 hv);
-int	mc_assoc_insert(item *item, u32 hv);
-void	mc_assoc_delete(const char *key, size_t nkey, u32 hv);
-void	mc_do_assoc_move_next_bucket(void);
-int	start_assoc_thread(void);
-void	stop_assoc_thread(void);
+/* mc_hashtable.c */
+int	hash_init(int power);
+void	hash_exit(void);
+item*	mc_hash_find(const char *key, u32 nkey, u32 hv);
+int	mc_hash_insert(item *item, u32 hv);
+void	mc_hash_delete(const char *key, size_t nkey, u32 hv);
+void	mc_do_hash_move_next_bucket(void);
+int	start_hash_thread(void);
+void	stop_hash_thread(void);
 
 /* misc */
-u32 hash(const void *key, size_t length, u32 initval);
+u32 hash(const void *key, u32 length, u32 initval);
 
 rel_time_t realtime(rel_time_t exptime);
 

@@ -326,7 +326,7 @@ int mc_do_item_link(item *it, u32 hv)
 
 	/* allocate a new CAS ID on link */
 	ITEM_set_cas(it, (settings.use_cas) ? mc_get_cas_id() : 0);
-	mc_assoc_insert(it, hv);
+	mc_hash_insert(it, hv);
 	mc_item_link_q(it);
 	atomic_inc(&it->refcount);
 	mutex_unlock(&cache_lock);
@@ -345,7 +345,7 @@ void mc_do_item_unlink(item *it, u32 hv)
 		stats.curr_items -= 1;
 		spin_unlock(&stats_lock);
 
-		mc_assoc_delete(ITEM_key(it), it->nkey, hv);
+		mc_hash_delete(ITEM_key(it), it->nkey, hv);
 		mc_item_unlink_q(it);
 		mc_do_item_remove(it);
 	}
@@ -363,7 +363,7 @@ void mc_do_item_unlink_nolock(item *it, u32 hv)
 		stats.curr_items -= 1;
 		spin_unlock(&stats_lock);
 
-		mc_assoc_delete(ITEM_key(it), it->nkey, hv);
+		mc_hash_delete(ITEM_key(it), it->nkey, hv);
 		mc_item_unlink_q(it);
 		mc_do_item_remove(it);
 	}
@@ -575,13 +575,13 @@ void mc_do_item_stats_sizes(add_stat_callback add_stats, void *c)
 	add_stats(NULL, 0, NULL, 0, c);
 }
 
-/** wrapper around assoc_find which does the lazy expiration logic */
+/** wrapper around hash_find which does the lazy expiration logic */
 item *mc_do_item_get(const char *key, size_t nkey, u32 hv)
 {
 	int was_found = 0;
 
 	//mutex_lock(&cache_lock);
-	item *it = mc_assoc_find(key, nkey, hv);
+	item *it = mc_hash_find(key, nkey, hv);
 	if (it != NULL) {
 		atomic_inc(&it->refcount);
 		/* Optimization for slab reassignment. prevents popular items from
