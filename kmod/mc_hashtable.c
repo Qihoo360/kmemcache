@@ -40,7 +40,7 @@ static u8 started_expanding = 0;
  */
 static unsigned int expand_bucket = 0;
 
-int INIT hash_init(int power) 
+int hash_init(int power) 
 {
 	size_t bytes;
 	int ret = 0;
@@ -296,7 +296,7 @@ out:
 	return 0;
 }
 
-int INIT start_hash_thread(void)
+int start_hash_thread(void)
 {
 	int ret = 0;
 

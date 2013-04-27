@@ -32,7 +32,7 @@ static DEFINE_MUTEX(item_global_lock);
 #define hashsize(n)	((unsigned long int)1 << (n))
 #define hashmask(n)	(hashsize(n) - 1)
 
-static int INIT item_lock_init(int nthreads)
+static int item_lock_init(int nthreads)
 {
 	int ret = 0;
 	int i, power, order;
@@ -582,7 +582,7 @@ out:
  *
  * Returns 0 on success, error code other wise.
  */
-int INIT workers_init(void)
+int workers_init(void)
 {
 	int i, ret = 0;
 	int nthreads = settings.num_threads;

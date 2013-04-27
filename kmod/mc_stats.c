@@ -200,7 +200,7 @@ out:
 	return res;
 }
 
-int INIT stats_init(void)
+int stats_init(void)
 {
 	/* assuming we start in this state. */
 	stats.accepting_conns = 1;

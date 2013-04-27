@@ -169,7 +169,7 @@ static void set_sock_callbacks(struct socket *sock,
 	//sk->sk_state_change = mc_disp_state_change;
 }
 
-static int INIT _log_socket_port(struct file *filp, const char *buf, size_t count)
+static int _log_socket_port(struct file *filp, const char *buf, size_t count)
 {
 	int ret = 0;
 	mm_segment_t old_fs;
@@ -182,8 +182,7 @@ static int INIT _log_socket_port(struct file *filp, const char *buf, size_t coun
 	return (ret >= 0 ? 0 : ret);
 }
 
-static int INIT log_socket_port(struct socket *sock, net_transport_t trans,
-				struct file *filp)
+static int log_socket_port(struct socket *sock, net_transport_t trans, struct file *filp)
 {
 	int ret = 0;
 	char log[50];
@@ -221,7 +220,7 @@ out:
 /**
  * Sets a socket's send buffer size to the maximum allowed by the system.
  */
-static int INIT maximize_sendbuf(struct socket *sock)
+static int maximize_sendbuf(struct socket *sock)
 {
 	return 0;
 /*
@@ -257,7 +256,7 @@ out:
 */
 }
 
-static int INIT server_socket_inet(sock_entry_t *se, struct file *filp)
+static int server_socket_inet(sock_entry_t *se, struct file *filp)
 {
 	int ret = 0;
 	int flags = 1;
@@ -369,7 +368,7 @@ out:
 	return ret;
 }
 
-static int INIT unlink_socket_file(const char *path)
+static int unlink_socket_file(const char *path)
 {
 	int ret = 0;
 	struct nameidata nd;
@@ -417,7 +416,7 @@ out:
 	return ret;
 }
 
-static int INIT server_socket_unix(const char *path, int access_mask)
+static int server_socket_unix(const char *path, int access_mask)
 {
 	int ret = 0;
 	int flags = 1;
@@ -488,7 +487,7 @@ out:
 
 #define VALID_TRANS(x) ((x) == tcp_transport || (x) == udp_transport)
 
-static char* INIT parse_port_file(char *data, int len)
+static char* parse_port_file(char *data, int len)
 {
 	char *end = data + len;
 	int selen = sizeof(sock_entry_t);
@@ -513,7 +512,7 @@ static char* INIT parse_port_file(char *data, int len)
 	return data;
 }
 
-int INIT server_init(void)
+int server_init(void)
 {
 	int ret = 0;
 	char *path = NULL;
@@ -592,7 +591,7 @@ void server_exit(void)
  *
  * Returns 0 on success, error code other wise.
  */
-int INIT dispatcher_init(void)
+int dispatcher_init(void)
 {
 	int ret = 0;
 

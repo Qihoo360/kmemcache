@@ -249,7 +249,7 @@ static int mc_do_slabs_newslab(unsigned int id)
  * Returns 0 if all slab pages allocated success, otherwise -ENOMEM means that a few
  * slabs allocated success.
  */
-static int INIT mc_slabs_preallocate (unsigned int maxslabs)
+static int mc_slabs_preallocate (unsigned int maxslabs)
 {
 	int i, ret = 0;
 	unsigned int prealloc = 0;
@@ -428,7 +428,7 @@ unsigned int mc_slabs_clsid(size_t size)
  *
  * Returns zero on success, errno otherwise.
  */
-int INIT slabs_init(size_t limit, int factor, int prealloc)
+int slabs_init(size_t limit, int factor, int prealloc)
 {
 	int ret = 0;
 	int i = POWER_SMALLEST - 1;
@@ -1046,7 +1046,7 @@ void mc_slabs_rebalancer_resume(void)
 	mutex_unlock(&slab_rebal.lock);
 }
 
-int INIT start_slab_thread(void)
+int start_slab_thread(void)
 {
 	int ret = 0;
 

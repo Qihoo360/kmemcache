@@ -5,14 +5,6 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 
-#ifdef CONFIG_DEBUG
-#define INIT
-#define EXIT
-#else
-#define INIT __init
-#define EXIT __exit
-#endif
-
 #include "config.h"
 #include "memcache.h"
 #include "sasl.h"

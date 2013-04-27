@@ -297,7 +297,7 @@ out:
 	return;
 }
 
-int INIT connector_init(void)
+int connector_init(void)
 {
 	int ret = 0;
 
@@ -357,7 +357,7 @@ out:
 	return ret;
 }
 
-void EXIT connector_exit(void)
+void connector_exit(void)
 {
 	struct cn_entry *pos, *n;
 	struct cn_queue *queue = cn.queue;

@@ -73,7 +73,7 @@ static void mc_timer_update(unsigned long arg)
 	add_timer(&t->timer);
 }
 
-static int INIT timer_init(void)
+static int timer_init(void)
 {
 	current_time = 0;
 
@@ -121,12 +121,12 @@ static void* settings_init_callback(struct cn_msg *msg,
 	return &settings;
 }
 
-static inline void INIT settings_exit(void)
+static inline void settings_exit(void)
 {
 	kfree(sock_info);
 }
 
-static int INIT settings_init(void)
+static int settings_init(void)
 {
 	int ret = 0;
 	void *out;
@@ -220,7 +220,7 @@ static void caches_info_exit(void)
 	}
 }
 
-static int INIT  caches_info_init(void)
+static int caches_info_init(void)
 {
 	int i;
 
@@ -349,7 +349,7 @@ static inline int register_kmemcache_bh(void)
 	return mc_add_callback(&cache_bh_id, kmemcache_bh_init, 0);
 }
 
-static INIT int kmemcache_init(void)
+static int __init kmemcache_init(void)
 {
 	int ret = 0;
 
@@ -372,7 +372,7 @@ out:
 	return ret;
 }
 
-static void EXIT kmemcache_exit(void)
+static void __exit kmemcache_exit(void)
 {
 	if (cache_bh_status) {
 		server_exit();
