@@ -18,7 +18,7 @@ x86_32/x86_64
 ===================================================    
 	            install
 ===================================================
-$ tar xzf kmemcache.tar.bz2
+$ tar xjf kmemcache.tar.bz2
 $ cd kmemcache
 $ make & make install
 
@@ -26,10 +26,9 @@ $ make & make install
 	             run
 ===================================================
 $ cd /usr/local/kmemcache
-$ insmod connector.ko
-$ ./umemcached -h
-$ ./umemcached
 $ insmod kmemcache.ko
+$ ./umemcached -h
+$ ./umemcached -d
 
 ===================================================    
 	            test 
@@ -44,13 +43,9 @@ refer to "more info"
 	           hacking  
 ===================================================
 enable "CONFIG_DEBUG=y" in kmod/Makefile, 
-$ insmod kmod/kmodhelper.ko
-$ insmod kmod/connector.ko
-$ ./user/umemcached
 $ insmod kmod/kmemcache.ko
+$ ./user/umemcached -d
 $ kgdb/gdb
-$ cat /proc/kmodhelper/delay
-$ echo 1 > /proc/kmodhelper/delay
 enjoy!
 
 ===================================================    
