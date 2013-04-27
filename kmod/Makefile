@@ -1,6 +1,3 @@
-PREFIX = /usr/local
-INSTALLDIR = $(PREFIX)/kmemcache
-
 CONFIG_DEBUG=n
 CONFIG_SASL=n
 CONFIG_PAGES_CACHE=y
@@ -13,6 +10,9 @@ ifeq ($(CONFIG_DEBUG),y)
 else
   DEBFLAGS = -O2
 endif
+
+EXTRA_CFLAGS += $(DEBFLAGS)
+EXTRA_CFLAGS += -I $(PWD)/../include
 
 ifeq ($(CONFIG_PAGES_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_PAGES_CACHE
@@ -30,12 +30,7 @@ ifeq ($(CONFIG_STACK_OPT),y)
   EXTRA_CFLAGS += -DCONFIG_STACK_OPT
 endif
 
-EXTRA_CFLAGS += $(DEBFLAGS)
-EXTRA_CFLAGS += -I $(PWD)/../include
-
-ifneq ($(KERNELRELEASE),)
-
-obj-m	:= kmodhelper.o connector.o kmemcache.o
+obj-m	+= kmodhelper.o connector.o kmemcache.o
 
 kmemcache-y :=	mc_strops.o	\
 		mc_buffer.o	\
@@ -55,15 +50,8 @@ kmemcache-y :=	mc_strops.o	\
 kmemcache-$(CONFIG_SASL)	+= mc_sasl.o
 
 
-else
-
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-PWD       := $(shell pwd)
-
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
-
-endif
 
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions *.symvers *.order
@@ -71,6 +59,9 @@ clean:
 install:
 	install -d $(INSTALLDIR)
 	install -m 755 *.ko $(INSTALLDIR)
+
+uninstall:
+	rm -f $(INSTALLDIR)/*.ko
 
 depend .depend dep:
 	$(CC) $(CFLAGS) -M *.c > .depend

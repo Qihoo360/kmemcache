@@ -1,11 +1,8 @@
-PREFIX = /usr/local
-INSTALLDIR = $(PREFIX)/kmemcache
-
 CC = gcc
 CFLAGS = -g -O2 -Wall
 LDFLAGS = 
 
-CFLAGS += -I$(PWD)/include
+CFLAGS += -I$(PWD)/../include
 
 umemcached-obj = umemcached.o settings.o daemon.o
 
@@ -16,8 +13,6 @@ umemcached: $(umemcached-obj)
 
 clean:
 	rm -f umemcached *.o
-
-distclean: clean
 
 install:
 	install -d $(INSTALLDIR)
