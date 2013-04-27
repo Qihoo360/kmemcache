@@ -4,7 +4,7 @@ LDFLAGS =
 
 CFLAGS += -I$(PWD)/../include
 
-umemcached-obj = umemcached.o settings.o daemon.o
+umemcached-obj = umemcached.o settings.o cache_bh.o daemon.o
 
 all: umemcached
 

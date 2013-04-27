@@ -53,11 +53,6 @@ extern int daemonize(int nochdir, int noclose);
 
 extern int netlink_send(int sock, struct cn_msg *msg);
 extern int netlink_send_settings(int sock, struct cn_id *id);
-
-#if HAVE_DROP_PRIVILEGES
-extern void drop_privileges(void);
-#else
-#define drop_privileges()
-#endif
+extern int netlink_send_cache_bh(int sock);
 
 #endif /* __UMEMCACHED_H */

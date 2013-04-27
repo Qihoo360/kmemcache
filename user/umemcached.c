@@ -43,7 +43,7 @@ static void usage(void)
            "-m <num>      max memory to use for items in megabytes (default: 64 MB)\n"
            "-M            return error on memory exhausted (rather than removing items)\n"
            "-c <num>      max simultaneous connections (default: 1024)\n"
-           "-k            lock down all paged memory.  Note that there is a\n"
+           "-k***         lock down all paged memory.  Note that there is a\n"
            "              limit on how much memory you may lock.  Trying to\n"
            "              allocate more than that would fail, so be sure you\n"
            "              set the limit correctly for the user you started\n"
@@ -188,18 +188,12 @@ static void remove_pidfile(const char *pid_file)
 	}
 }
 
-static void sig_handler(const int sig)
-{
-	printf("SIGINT handled.\n");
-	exit(EXIT_SUCCESS);
-}
-
 #ifndef HAVE_SIGIGNORE
 static int sigignore(int sig)
 {
 	struct sigaction sa = {
 		.sa_handler = SIG_IGN,
-		.sa_flags = 0
+		.sa_flags   = 0
 	};
 
 	if (sigemptyset(&sa.sa_mask) == -1 ||
@@ -379,6 +373,13 @@ static void main_loop(void)
 		goto close_sock;
 	}
 
+	if (!fork()) {
+		sleep(10);
+		netlink_send_cache_bh(sock);
+		close(sock);
+		return;
+	}
+
 	epoll = epoll_create(MAX_EVENTS);
 	if (epoll == -1) {
 		perror("epoll_create");
@@ -445,7 +446,6 @@ close_sock:
 int main(int argc, char *argv[])
 {
 	int c;
-	int lock_memory	= 0;
 	int do_daemonize= 0;
 	int maxcore	= 0;
 	char *pid_file	= NULL;
@@ -474,9 +474,6 @@ int main(int argc, char *argv[])
 		[SLAB_AUTOMOVE] = "slab_automove",
 		NULL
 	};
-
-	/* handle SIGINT */
-    	signal(SIGINT, sig_handler);
 
 	/* init settings */
 	settings_init();
@@ -552,9 +549,6 @@ int main(int argc, char *argv[])
 		case 'i':
 			usage_license();
 			exit(EXIT_SUCCESS);
-		case 'k':
-			lock_memory = 1;
-			break;
 		case 'v':
 			settings.verbose++;
 			break;
@@ -839,22 +833,6 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-
-	/* lock paged memory if needed */
-	if (lock_memory) {
-#ifdef HAVE_MLOCKALL
-		int res = mlockall(MCL_CURRENT | MCL_FUTURE);
-		if (res != 0) {
-			fprintf(stderr, "warning: -k invalid, mlockall() failed: %s\n",
-			    strerror(errno));
-		}
-#else
-		fprintf(stderr, "warning: -k invalid, mlockall() not supported on this platform.  proceeding without.\n");
-#endif
-	}
-
-	/* Drop privileges no longer needed */
-	drop_privileges();
 
 	main_loop();
 

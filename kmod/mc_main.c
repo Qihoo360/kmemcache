@@ -8,17 +8,24 @@
 #include <linux/kthread.h>
 #include <linux/completion.h>
 #include <linux/fs.h>
+#include <linux/kthread.h>
 
 #include "mc.h"
-#include "kmodhelper.h"
 
-int timeout = 5;
+int timeout = 10;
 module_param(timeout, int, 0);
 MODULE_PARM_DESC(timeout, "timeout in seconds for msg from umemcached");
 
 int single_dispatch = 1;
 module_param(single_dispatch, int, 0);
 MODULE_PARM_DESC(single_dispatch, "value 0 means one thread for each CPU");
+
+/* initialize command from umemcached */
+static int cache_bh_status;
+static struct cn_id cache_bh_id = {
+	.idx = CN_IDX_CACHE_BH,
+	.val = CN_VAL_CACHE_BH
+};
 
 volatile rel_time_t current_time;
 rel_time_t process_started __read_mostly;
@@ -129,7 +136,7 @@ static int INIT settings_init(void)
 	msg.id.val = mc_get_unique_val();
 	msg.len	= 0;
 
-	ret = mc_add_callback(&msg.id, settings_init_callback);
+	ret = mc_add_callback(&msg.id, settings_init_callback, 1);
 	if (unlikely(ret)) {
 		PRINTK("add settings init callback error");
 		goto out;
@@ -140,7 +147,7 @@ static int INIT settings_init(void)
 		ret = -EFAULT;
 	}
 
-	mc_del_callback(&msg.id);
+	mc_del_callback(&msg.id, 1);
 out:
 	mc_put_unique_val(msg.id.val);
 	return ret;
@@ -223,8 +230,7 @@ static int INIT  caches_info_init(void)
 		*cache->cachep = kmem_cache_create(cache->name,
 						   cache->size,
 						   0,
-						   SLAB_HWCACHE_ALIGN |
-						   SLAB_PANIC,
+						   SLAB_HWCACHE_ALIGN,
 						   cache->ctor);
 		if (!*cache->cachep) {
 			PRINTK("create kmem cache error");
@@ -238,15 +244,7 @@ out:
 	return -ENOMEM;
 }
 
-#ifdef CONFIG_DEBUG
-static int init_status = -EFAULT;
-#endif
-
-#ifdef CONFIG_DEBUG
-static void _kmemcache_init(void *unused)
-#else
-static int INIT _kmemcache_init(void)
-#endif
+static int __kmemcache_bh_init(void *unused)
 {
 	int ret = 0;
 
@@ -298,12 +296,9 @@ static int INIT _kmemcache_init(void)
 		goto del_timer;
 	}
 
-#ifdef CONFIG_DEBUG
-	init_status = 0;
-	return; 
-#else
+	cache_bh_status = 1;
+	PRINTK("init kmemcache server success");
 	return 0;
-#endif
 
 del_timer:
 	timer_exit();
@@ -327,49 +322,75 @@ del_caches:
 del_set:
 	settings_exit();
 out:
-#ifdef CONFIG_DEBUG
-	init_status = ret;
-	return;
-#else
+	PRINTK("init kmemcache server error");
 	return ret;
-#endif
+}
+
+static inline void unregister_kmemcache_bh(void)
+{
+	mc_del_callback(&cache_bh_id, 0);
+}
+
+static void* kmemcache_bh_init(struct cn_msg *msg,
+		struct netlink_skb_parms *pm)
+{
+	struct task_struct *helper;
+
+	helper = kthread_run(__kmemcache_bh_init, NULL, "kmcbh");
+	if (IS_ERR(helper)) {
+		PRINTK("create kmemcache bh kthread error");
+	}
+
+	return NULL;
+}
+
+static inline int register_kmemcache_bh(void)
+{
+	return mc_add_callback(&cache_bh_id, kmemcache_bh_init, 0);
 }
 
 static INIT int kmemcache_init(void)
 {
 	int ret = 0;
 
-#ifdef CONFIG_DEBUG
-	ret = register_callback(_kmemcache_init, NULL);
+	ret = connector_init();
 	if (ret) {
-		PRINTK("register init callback function error");
-		ret = -EFAULT;
+		PRINTK("init connector error");
+		goto out;
 	}
-#else
-	ret = _kmemcache_init();
-#endif
+	ret = register_kmemcache_bh();
+	if (ret) {
+		PRINTK("register kmemcache bh error");
+		goto cn_exit;
+	}
 
+	return 0;
+
+cn_exit:
+	connector_exit();
+out:
 	return ret;
 }
 
 static void EXIT kmemcache_exit(void)
 {
-#ifdef CONFIG_DEBUG
-	if (init_status)
-		return;
-#endif
-	server_exit();
-	timer_exit();
-	if (settings.slab_reassign)
-		stop_slab_thread();
-	stop_hash_thread();
-	workers_exit();
-	dispatcher_exit();
-	hash_exit();
-	slabs_exit();
-	stats_exit();
-	caches_info_exit();
-	pages_cache_exit();
+	if (cache_bh_status) {
+		server_exit();
+		timer_exit();
+		if (settings.slab_reassign)
+			stop_slab_thread();
+		stop_hash_thread();
+		workers_exit();
+		dispatcher_exit();
+		hash_exit();
+		slabs_exit();
+		stats_exit();
+		caches_info_exit();
+		pages_cache_exit();
+	} else {
+		unregister_kmemcache_bh();
+	}
+	connector_exit();
 }
 
 module_init(kmemcache_init);

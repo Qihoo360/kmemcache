@@ -1,18 +1,23 @@
 CONFIG_DEBUG=n
 CONFIG_SASL=n
+CONFIG_CN_CACHE=n
 CONFIG_PAGES_CACHE=y
 CONFIG_BUFFER_CACHE=y
 CONFIG_LISTEN_CACHE=y
 CONFIG_STACK_OPT=y
 
 ifeq ($(CONFIG_DEBUG),y)
-  DEBFLAGS = -O -Wall -g -DCONFIG_DEBUG
+  DEBFLAGS = -O -Wall -g
 else
   DEBFLAGS = -O2
 endif
 
 EXTRA_CFLAGS += $(DEBFLAGS)
 EXTRA_CFLAGS += -I $(PWD)/../include
+
+ifeq ($(CONFIG_CN_CACHE),y)
+  EXTRA_CFLAGS += -DCONFIG_CN_CACHE
+endif
 
 ifeq ($(CONFIG_PAGES_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_PAGES_CACHE
@@ -30,7 +35,7 @@ ifeq ($(CONFIG_STACK_OPT),y)
   EXTRA_CFLAGS += -DCONFIG_STACK_OPT
 endif
 
-obj-m	+= kmodhelper.o connector.o kmemcache.o
+obj-m	+= kmodhelper.o kmemcache.o
 
 kmemcache-y :=	mc_strops.o	\
 		mc_buffer.o	\
@@ -45,7 +50,8 @@ kmemcache-y :=	mc_strops.o	\
 		mc_dispatcher.o	\
 		mc_proto_bin.o	\
 		mc_proto_txt.o	\
-		mc_proto.o
+		mc_proto.o	\
+		mc_connector.o
 
 kmemcache-$(CONFIG_SASL)	+= mc_sasl.o
 
