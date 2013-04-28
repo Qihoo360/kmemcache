@@ -12,13 +12,9 @@
 
 #include "mc.h"
 
-int timeout = 10;
+int timeout __read_mostly = 10;
 module_param(timeout, int, 0);
 MODULE_PARM_DESC(timeout, "timeout in seconds for msg from umemcached");
-
-int single_dispatch = 1;
-module_param(single_dispatch, int, 0);
-MODULE_PARM_DESC(single_dispatch, "value 0 means one thread for each CPU");
 
 /* initialize command from umemcached */
 static int cache_bh_status;
@@ -92,65 +88,6 @@ static void timer_exit(void)
 {
 	time_updater.flags |= TIMER_DEL;
 	del_timer_sync(&time_updater.timer);
-}
-
-struct settings settings __read_mostly;
-parser_sock_t *sock_info;
-
-static void* settings_init_callback(struct cn_msg *msg,
-				    struct netlink_skb_parms *pm)
-{
-	size_t size;
-	settings_init_t *data = (settings_init_t *)msg->data;
-
-	if (IS_ERR_OR_NULL(data))
-		return ERR_PTR(-EFAULT);
-
-	size = sizeof(parser_sock_t) + data->len;
-	sock_info = kmalloc(size, GFP_KERNEL);
-	if (!sock_info) {
-		PRINTK("alloc socket-parser vectory error");
-		return ERR_PTR(-ENOMEM);
-	}
-
-	sock_info->flags = data->flags;
-	sock_info->len = data->len;
-	memcpy(sock_info->data, data->data, data->len);
-	memcpy(&settings, data, sizeof(settings));
-
-	return &settings;
-}
-
-static inline void settings_exit(void)
-{
-	kfree(sock_info);
-}
-
-static int settings_init(void)
-{
-	int ret = 0;
-	void *out;
-	struct cn_msg msg;
-
-	msg.id.idx = CN_IDX_INIT_SET;
-	msg.id.val = mc_get_unique_val();
-	msg.len	= 0;
-
-	ret = mc_add_callback(&msg.id, settings_init_callback, 1);
-	if (unlikely(ret)) {
-		PRINTK("add settings init callback error");
-		goto out;
-	}
-	out = mc_send_msg_timeout(&msg, msecs_to_jiffies(timeout * 1000));
-	if (IS_ERR(out)) {
-		PRINTK("send settings init error");
-		ret = -EFAULT;
-	}
-
-	mc_del_callback(&msg.id, 1);
-out:
-	mc_put_unique_val(msg.id.val);
-	return ret;
 }
 
 static struct cache_info {
@@ -297,7 +234,7 @@ static int __kmemcache_bh_init(void *unused)
 	}
 
 	cache_bh_status = 1;
-	PRINTK("init kmemcache server success");
+	PRINTK("start kmemcache server success");
 	return 0;
 
 del_timer:
@@ -322,7 +259,7 @@ del_caches:
 del_set:
 	settings_exit();
 out:
-	PRINTK("init kmemcache server error");
+	PRINTK("start kmemcache server error");
 	return ret;
 }
 

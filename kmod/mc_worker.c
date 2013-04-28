@@ -12,6 +12,26 @@
 
 #include "mc.h"
 
+/* sync in all worker threads */
+static atomic_t sync_workers = ATOMIC_INIT(0);
+static DECLARE_COMPLETION(sync_comp);
+
+#define BEGIN_WAIT_FOR_THREAD_REGISTRATION()			\
+	do {							\
+		atomic_set(&sync_workers, settings.num_threads);\
+	} while (0)
+
+#define WAIT_FOR_THREAD_REGISTRATION()		\
+	do {					\
+		wait_for_completion(&sync_comp);\
+	} while (0)
+
+#define REGISTER_THREAD_INITIALIZED()			\
+	do {						\
+		if (atomic_dec_and_test(&sync_workers))	\
+			complete(&sync_comp);		\
+	} while (0)
+
 struct kmem_cache *conn_req_cachep;
 struct kmem_cache *lock_xchg_req_cachep;
 
@@ -657,7 +677,7 @@ void workers_exit(void)
 		flush_workqueue(worker->wq);
 		destroy_workqueue(worker->wq);
 	}
-	list_for_each_entry_safe(ss, m, &dispatcher.udp_list, list) {
+	list_for_each_entry_safe(ss, m, &dsper.udp_list, list) {
 		ss->sock->ops->shutdown(ss->sock, SHUT_RDWR);
 		sock_release(ss->sock);
 		list_del(&ss->list);

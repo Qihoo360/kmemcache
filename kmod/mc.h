@@ -10,6 +10,7 @@
 #include "sasl.h"
 #include "connector.h"
 #include "mc_buffer.h"
+#include "mc_uparam.h"
 
 /* Maximum length of a key */
 #define KEY_MAX_LEN		250

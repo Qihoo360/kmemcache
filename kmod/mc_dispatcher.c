@@ -10,51 +10,52 @@
 #include <linux/un.h>
 #include <net/sock.h>
 #include <net/tcp.h>
+
 #include <asm/uaccess.h>
 #include <asm/bitops.h>
+#include <asm/system.h>
 
 #include "mc.h"
 
-struct dispatcher_thread dispatcher;
-struct kmem_cache *listen_cachep;
+struct dispatcher_master dsper;
+
+static struct serve_sock* __alloc_serve_sock(net_transport_t trans);
+static void __free_serve_sock(struct serve_sock *ss);
 
 void mc_accept_new_conns(int enable)
 {
 	struct serve_sock *ss;
 
-	if (enable && test_bit(ACCEPT_NEW, &dispatcher.flags))
+	if (enable && test_bit(ACCEPT_NEW, &dsper.flags))
 		return;
-
-	spin_lock(&dispatcher.lock);
-	list_for_each_entry(ss, &dispatcher.list, list) {
-		int backlog = enable ? settings.backlog : 0;
-		if (kernel_listen(ss->sock, backlog)) {
-			PRINTK("mc_accept_new_conns listen error");
-		}
-	}
-	spin_unlock(&dispatcher.lock);
-
 	if (enable) {
-		set_bit(ACCEPT_NEW, &dispatcher.flags);
+		set_bit(ACCEPT_NEW, &dsper.flags);
 		spin_lock(&stats_lock);
 		stats.accepting_conns = 1;
 		spin_unlock(&stats_lock);
 	} else {
-		clear_bit(ACCEPT_NEW, &dispatcher.flags);
+		clear_bit(ACCEPT_NEW, &dsper.flags);
 
 		spin_lock(&stats_lock);
 		stats.accepting_conns = 0;
 		stats.listen_disabled_num++;
 		spin_unlock(&stats_lock);
 	}
+
+	spin_lock(&dsper.sock_lock);
+	list_for_each_entry(ss, &dsper.listen_list, list) {
+		int backlog = enable ? settings.backlog : 0;
+		if (kernel_listen(ss->sock, backlog)) {
+			PRINTK("mc_accept_new_conns listen error");
+		}
+	}
+	spin_unlock(&dsper.sock_lock);
 }
 
-static void mc_sock_work(struct work_struct *work)
+static void mc_sock_work(struct serve_sock *ss)
 {
 	int ret = 0;
 	struct socket *nsock;
-	struct serve_sock *ss =
-		(container_of(work, struct server_work, work))->ss;
 
 	ret = kernel_accept(ss->sock, &nsock, O_NONBLOCK);
 	if (ret) {
@@ -63,7 +64,7 @@ static void mc_sock_work(struct work_struct *work)
 				PRINTK("too many open connections");
 			}
 			mc_accept_new_conns(0);
-			cancel_work_sync(work);
+			/*FIXME: cancel request */
 		}
 		PRINTK("accept new socket error");
 		return;
@@ -101,9 +102,62 @@ err_out:
 	return;
 }
 
+#ifdef CONFIG_SINGLE_DISPATCHER
+static int mc_disp_kthread(void *noused)
+{
+	struct serve_sock *pos;
+
+	while (!kthread_should_stop()) {
+		if (!atomic_long_read(&dsper.req))
+			schedule();
+		if (kthread_should_stop())
+			break;
+		spin_lock(&dsper.dsp_lock);
+		list_for_each_entry(pos, &dsper.dsp_list, dsp_list) {
+			for (; ;) {
+				if (atomic_long_read(&pos->req)) {
+					mc_sock_work(pos);
+					atomic_long_dec(&pos->req);
+					atomic_long_dec(&dsper.req);
+				} else {
+					break;
+				}
+			}
+		}
+		spin_unlock(&dsper.dsp_lock);
+	}
+
+	return 0;
+}
+#else
+static int mc_disp_kthread(void *data)
+{
+	struct serve_sock *ss = data;
+
+	while (!kthread_should_stop()) {
+		if (!atomic_long_read(&ss->req))
+			schedule();
+		if (kthread_should_stop() ||
+		    test_bit(conn_closing, &ss->state)) {
+			break;
+		}
+		for (; ;) {
+			if (atomic_long_read(&ss->req)) {
+				mc_sock_work(ss);
+				atomic_long_dec(&ss->req);
+			} else {
+				break;
+			}
+		}
+	}
+
+	return 0;
+}
+#endif
+
 static void inline _queue(struct serve_sock *ss)
 {
-	if (!test_bit(ACCEPT_NEW, &dispatcher.flags)) {
+	if (!test_bit(ACCEPT_NEW, &dsper.flags)) {
 		PRINFO("server don't accept new socket");
 		return;
 	}
@@ -111,25 +165,11 @@ static void inline _queue(struct serve_sock *ss)
 		PRINTK("server socket closing");
 		return;
 	}
-#ifdef CONFIG_LISTEN_CACHE
-	{
-		struct server_work *sw =
-			kmem_cache_alloc(listen_cachep, GFP_ATOMIC);
-		if (!sw) {
-			PRINTK(" alloc new work_struct error");
-			return;
-		}
-		sw->ss = ss;
-		INIT_WORK(&sw->work, mc_sock_work);
-		queue_work(dispatcher.wq, &sw->work);
-	}
-#else
-	{
-		if (!queue_work(dispatcher.wq, &ss->work)) {
-			PRINTK(" a new socket already queued");
-		}
-	}
+#ifdef CONFIG_SINGLE_DISPATCHER
+	atomic_long_inc(&dsper.req);
 #endif
+	atomic_long_inc(&ss->req);
+	wake_up_process(ss->dsp_tsk);
 }
 
 /*
@@ -165,8 +205,8 @@ static void set_sock_callbacks(struct socket *sock,
 
 	sk->sk_user_data    = ss;
 	sk->sk_data_ready   = mc_disp_data_ready;
-	//sk->sk_write_space  = mc_disp_write_space;
-	//sk->sk_state_change = mc_disp_state_change;
+	sk->sk_write_space  = mc_disp_write_space;
+	sk->sk_state_change = mc_disp_state_change;
 }
 
 static int _log_socket_port(struct file *filp, const char *buf, size_t count)
@@ -256,6 +296,57 @@ out:
 */
 }
 
+static struct serve_sock* __alloc_serve_sock(net_transport_t trans)
+{
+	struct serve_sock *ss;
+#ifndef CONFIG_SINGLE_DISPATCHER
+	static int id = 0;
+#endif
+
+	ss = kzalloc(sizeof(*ss), GFP_KERNEL);
+	if (!ss) {
+		PRINTK("alloc serve sock error");
+		goto out;
+	}
+	ss->transport = trans;
+	INIT_LIST_HEAD(&ss->list);
+	if (IS_UDP(trans)) {
+		goto out;
+	}
+
+#ifdef CONFIG_SINGLE_DISPATCHER
+	ss->dsp_tsk = dsper.dsp_tsk;
+	spin_lock(&dsper.dsp_lock);
+	list_add_tail(&ss->dsp_list, &dsper.dsp_list);
+	spin_unlock(&dsper.dsp_lock);
+#else
+	barrier();
+	ss->dsp_tsk = kthread_run(mc_disp_kthread, ss, "kmcdspt%d", ++id);
+	if (IS_ERR(ss->dsp_tsk)) {
+		PRINTK("create dispatcher kthread(%d) error", id);
+		kfree(ss);
+		ss = NULL;
+	}
+#endif
+
+out:
+	return ss;
+}
+
+static void __free_serve_sock(struct serve_sock *ss)
+{
+	if (!IS_UDP(ss->transport)) {
+#ifdef CONFIG_SINGLE_DISPATCHER
+		spin_lock(&dsper.dsp_lock);
+		list_del(&ss->dsp_list);
+		spin_unlock(&dsper.dsp_lock);
+#else
+		kthread_stop(ss->dsp_tsk);
+#endif
+	}
+	kfree(ss);
+}
+
 static int server_socket_inet(sock_entry_t *se, struct file *filp)
 {
 	int ret = 0;
@@ -263,19 +354,18 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 	struct serve_sock *ss;
 	struct linger ling = {0, 0};
 
-	ss = kzalloc(sizeof(*ss), GFP_KERNEL);
+	ss = __alloc_serve_sock(se->trans);
 	if (!ss) {
 		PRINTK("alloc server socket error");
 		ret = -ENOMEM;
 		goto out;
 	}
-	ss->transport = se->trans;
-	INIT_LIST_HEAD(&ss->list);
-	INIT_WORK(&ss->work, mc_sock_work);
 
 	if ((ret = sock_create_kern(se->family, se->type,
 				    se->protocol, &ss->sock))) {
-		PRINTK("create server socket error");
+		PRINTK("create server socket error(%d), "
+		       "family=%d, type=%d, protocol=%d",
+		       ret, se->family, se->type, se->protocol);
 		goto free_sock;
 	}
 	if (!IS_UDP(se->trans)) {
@@ -346,16 +436,18 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 
 		if (ret) {
 			ret = 0;
-			list_add(&ss->list, &dispatcher.udp_list);
+			spin_lock(&dsper.sock_lock);
+			list_add(&ss->list, &dsper.udp_list);
+			spin_unlock(&dsper.sock_lock);
 		} else {
 			ret = -EFAULT;
 			sock_release(ss->sock);
-			kfree(ss);
+			__free_serve_sock(ss);
 		}
 	} else {
-		spin_lock(&dispatcher.lock);
-		list_add_tail(&ss->list, &dispatcher.list);
-		spin_unlock(&dispatcher.lock);
+		spin_lock(&dsper.sock_lock);
+		list_add_tail(&ss->list, &dsper.listen_list);
+		spin_unlock(&dsper.sock_lock);
 	}
 
 	return ret;
@@ -363,7 +455,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 release_sock:
 	sock_release(ss->sock);
 free_sock:
-	kfree(ss);
+	__free_serve_sock(ss);
 out:
 	return ret;
 }
@@ -429,15 +521,12 @@ static int server_socket_unix(const char *path, int access_mask)
 		goto out;
 	}
 
-	ss = kzalloc(sizeof(*ss), GFP_KERNEL);
+	ss = __alloc_serve_sock(local_transport);
 	if (!ss) {
 		PRINTK("alloc unix socket error");
 		ret = -ENOMEM;
 		goto out;
 	}
-	ss->transport = local_transport;
-	INIT_LIST_HEAD(&ss->list);
-	INIT_WORK(&ss->work, mc_sock_work);
 
 	if ((ret = sock_create_kern(AF_UNIX, SOCK_STREAM, 0, &ss->sock))) {
 		PRINTK("create unix socket error");
@@ -471,16 +560,16 @@ static int server_socket_unix(const char *path, int access_mask)
 		goto release_sock;
 	}
 
-	spin_lock(&dispatcher.lock);
-	list_add_tail(&ss->list, &dispatcher.list);
-	spin_unlock(&dispatcher.lock);
+	spin_lock(&dsper.sock_lock);
+	list_add_tail(&ss->list, &dsper.listen_list);
+	spin_unlock(&dsper.sock_lock);
 
 	return 0;
 
 release_sock:
 	sock_release(ss->sock);
 free_sock:
-	kfree(ss);
+	__free_serve_sock(ss);
 out:
 	return ret;
 }
@@ -573,21 +662,32 @@ void server_exit(void)
 {
 	struct serve_sock *ss, *n;
 
-	spin_lock(&dispatcher.lock);
-	list_for_each_entry_safe(ss, n, &dispatcher.list, list) {
+	mc_accept_new_conns(0);
+
+retry:
+	spin_lock(&dsper.sock_lock);
+	list_for_each_entry_safe(ss, n, &dsper.listen_list, list) {
+		if (atomic_long_read(&ss->req)) {
+			continue;
+		}
 		set_bit(conn_closing, &ss->state);
-		cancel_work_sync(&ss->work);
 		ss->sock->ops->shutdown(ss->sock, SHUT_RDWR);
 		sock_release(ss->sock);
 		ss->sock = NULL;
 		list_del(&ss->list);
-		kfree(ss);
+		__free_serve_sock(ss);
 	}
-	spin_unlock(&dispatcher.lock);
+	spin_unlock(&dsper.sock_lock);
+
+	if (!list_empty(&dsper.listen_list)) {
+		msleep(1000);
+		goto retry;
+	}
 }
 
 /**
- * create the dispatcher kthread.
+ * init dispatcher master, and create the shared 
+ * dispatcher kthread if needed.
  *
  * Returns 0 on success, error code other wise.
  */
@@ -595,29 +695,30 @@ int dispatcher_init(void)
 {
 	int ret = 0;
 
-	if (single_dispatch) {
-		dispatcher.wq =
-			create_singlethread_workqueue("mc_dispatcher");
-	} else {
-		dispatcher.wq =
-			create_workqueue("mc_dispatcher");
-	}
-	if (!dispatcher.wq) {
-		PRINTK("create dispatcher kthread error");
-		ret = -ENOMEM;
-		goto out;
-	}
-	set_bit(ACCEPT_NEW, &dispatcher.flags);
-	INIT_LIST_HEAD(&dispatcher.list);
-	INIT_LIST_HEAD(&dispatcher.udp_list);
-	atomic_set(&dispatcher._workers, 0);
-	init_completion(&dispatcher._comp);
+	set_bit(ACCEPT_NEW, &dsper.flags);
+	INIT_LIST_HEAD(&dsper.listen_list);
+	INIT_LIST_HEAD(&dsper.udp_list);
+	spin_lock_init(&dsper.sock_lock);
 
-out:
+#ifdef CONFIG_SINGLE_DISPATCHER
+	atomic_long_set(&dsper.req, 0);
+	spin_lock_init(&dsper.dsp_lock);
+	INIT_LIST_HEAD(&dsper.dsp_list);
+	barrier();
+	dsper.dsp_tsk = kthread_run(mc_disp_kthread,
+			NULL, "kmcdspt");
+	if (IS_ERR(dsper.dsp_tsk)) {
+		PRINTK("create dispatcher kthread error");
+		ret = PTR_ERR(dsper.dsp_tsk);
+	}
+#endif
+
 	return ret;
 }
 
 void dispatcher_exit(void)
 {
-	destroy_workqueue(dispatcher.wq);
+#ifdef CONFIG_SINGLE_DISPATCHER
+	kthread_stop(dsper.dsp_tsk);
+#endif
 }

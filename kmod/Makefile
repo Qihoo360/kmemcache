@@ -3,8 +3,10 @@ CONFIG_SASL=n
 CONFIG_CN_CACHE=n
 CONFIG_PAGES_CACHE=n
 CONFIG_BUFFER_CACHE=n
-CONFIG_LISTEN_CACHE=y
 CONFIG_STACK_OPT=y
+
+# all listen sockets share a thread 
+CONFIG_SINGLE_DISPATCHER=n
 
 ifeq ($(CONFIG_DEBUG),y)
   DEBFLAGS = -O -Wall -g
@@ -27,12 +29,12 @@ ifeq ($(CONFIG_BUFFER_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_BUFFER_CACHE
 endif
 
-ifeq ($(CONFIG_LISTEN_CACHE),y)
-  EXTRA_CFLAGS += -DCONFIG_LISTEN_CACHE
-endif
-
 ifeq ($(CONFIG_STACK_OPT),y)
   EXTRA_CFLAGS += -DCONFIG_STACK_OPT
+endif
+
+ifeq ($(CONFIG_SINGLE_DISPATCHER),y)
+  EXTRA_CFLAGS += -DCONFIG_SINGLE_DISPATCHER
 endif
 
 obj-m	+= kmodhelper.o kmemcache.o
@@ -51,7 +53,8 @@ kmemcache-y :=	mc_strops.o	\
 		mc_proto_bin.o	\
 		mc_proto_txt.o	\
 		mc_proto.o	\
-		mc_connector.o
+		mc_connector.o	\
+		mc_uparam.o
 
 kmemcache-$(CONFIG_SASL)	+= mc_sasl.o
 
