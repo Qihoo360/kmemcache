@@ -107,9 +107,11 @@ static int mc_disp_kthread(void *noused)
 {
 	struct serve_sock *pos;
 
-	while (!kthread_should_stop()) {
-		if (!atomic_long_read(&dsper.req))
+	while (1) {
+		if (!atomic_long_read(&dsper.req)) {
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule();
+		}
 		if (kthread_should_stop())
 			break;
 		spin_lock(&dsper.dsp_lock);
@@ -134,9 +136,11 @@ static int mc_disp_kthread(void *data)
 {
 	struct serve_sock *ss = data;
 
-	while (!kthread_should_stop()) {
-		if (!atomic_long_read(&ss->req))
+	while (1) {
+		if (!atomic_long_read(&ss->req)) {
+			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule();
+		}
 		if (kthread_should_stop() ||
 		    test_bit(conn_closing, &ss->state)) {
 			break;
