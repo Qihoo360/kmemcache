@@ -31,8 +31,10 @@ static item** old_hashtable = 0;
 static unsigned int hash_items = 0;
 
 /* flag: are we in the middle of expanding now? */
-static u8 expanding = 0;
-static u8 started_expanding = 0;
+#define ZOMBIE		0
+#define EXPANDING	1
+#define SEXPANDING	2
+static unsigned long hashflags;
 
 /* 
  * during expansion we migrate values with bucket granularity; this is how
@@ -67,7 +69,7 @@ out:
 
 void hash_exit(void)
 {
-	if (expanding) {
+	if (test_bit(EXPANDING, &hashflags)) {
 		free_buffer(&old_hts);
 		old_hashtable = NULL;
 	}
@@ -80,7 +82,7 @@ item* mc_hash_find(const char *key, u32 nkey, u32 hv)
 	item *it, *ret = NULL;
 	unsigned int oldbucket;
 
-	if (expanding &&
+	if (test_bit(EXPANDING, &hashflags) &&
 	    (oldbucket = (hv & hashmask(hashpower - 1))) >= expand_bucket) {
 		it = old_hashtable[oldbucket];
 	} else {
@@ -108,7 +110,7 @@ static item** _mc_hashitem_before(const char *key, size_t nkey, u32 hv)
 	item **pos;
 	unsigned int oldbucket;
 
-	if (expanding &&
+	if (test_bit(EXPANDING, &hashflags) &&
 	    (oldbucket = (hv & hashmask(hashpower - 1))) >= expand_bucket) {
 		pos = &old_hashtable[oldbucket];
 	} else {
@@ -139,7 +141,7 @@ static void mc_hash_expand(void)
 			PRINTK("hash table expansion starting");
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 		hashpower++;
-		expanding = 1;
+		set_bit(EXPANDING, &hashflags);
 		expand_bucket = 0;
 
 		spin_lock(&stats_lock);
@@ -157,9 +159,8 @@ static void mc_hash_expand(void)
 
 static void mc_hash_start_expand(void)
 {
-	if (started_expanding)
+	if (test_and_set_bit(SEXPANDING, &hashflags))
 		return;
-	started_expanding = 1;
 	wake_up(&hash_wait_queue);
 }
 
@@ -174,7 +175,7 @@ int mc_hash_insert(item *it, u32 hv)
 	/* shouldn't have duplicately named things defined */
 	//BUG_ON(mc_hash_find(ITEM_key(it), it->nkey));	
 	
-	if (expanding &&
+	if (test_bit(EXPANDING, &hashflags) &&
 	    (oldbucket = (hv & hashmask(hashpower - 1))) >= expand_bucket) {
 		it->h_next = old_hashtable[oldbucket];
 		old_hashtable[oldbucket] = it;
@@ -184,7 +185,7 @@ int mc_hash_insert(item *it, u32 hv)
 	}
 
 	hash_items++;
-	if (!expanding && hash_items > (hashsize(hashpower) * 3) / 2) {
+	if (!test_bit(EXPANDING, &hashflags) && hash_items > (hashsize(hashpower) * 3) / 2) {
 		mc_hash_start_expand();
 	}
 
@@ -216,12 +217,10 @@ void mc_hash_delete(const char *key, size_t nkey, u32 hv)
 	BUG_ON(!*before);
 }
 
-static atomic_t do_run_thread = ATOMIC_INIT(1);
-
 static int mc_hash_thread(void *ignore)
 {
 	set_freezable();
-	while (atomic_read(&do_run_thread)) {
+	while (test_bit(ZOMBIE, &hashflags)) {
 		int ii = 0;
 
 		/* 
@@ -231,7 +230,7 @@ static int mc_hash_thread(void *ignore)
 		mc_item_lock_global();
 		mutex_lock(&cache_lock);
 
-		for (ii = 0; ii < settings.hash_bulk_move && expanding; ii++) {
+		for (ii = 0; ii < settings.hash_bulk_move && test_bit(EXPANDING, &hashflags); ii++) {
 			item *it, *next;
 			int bucket;
 
@@ -248,9 +247,9 @@ static int mc_hash_thread(void *ignore)
 			expand_bucket++;
 
 			if (expand_bucket == hashsize(hashpower - 1)) {
-				expanding = 0;
-				started_expanding = 0;
-				kfree(old_hashtable);
+				clear_bit(EXPANDING, &hashflags);
+				clear_bit(SEXPANDING, &hashflags);
+				free_buffer(&old_hts);
 
 				spin_lock(&stats_lock);
 				stats.hash_bytes -= hashsize(hashpower - 1) *
@@ -266,7 +265,7 @@ static int mc_hash_thread(void *ignore)
 		mutex_unlock(&cache_lock);
 		mc_item_unlock_global();
 
-		if (!expanding) {
+		if (!test_bit(EXPANDING, &hashflags)) {
 			/* 
 			 * finished expanding. tell all threads to use
 			 * fine-grained locks.
@@ -278,9 +277,9 @@ static int mc_hash_thread(void *ignore)
 			 * We are done expanding.. just wait for next invocation
 			 */
 			wait_event_freezable(hash_wait_queue,
-					     started_expanding ||
+					     test_bit(SEXPANDING, &hashflags) ||
 					     kthread_should_stop());
-			if (!atomic_read(&do_run_thread)) {
+			if (test_bit(ZOMBIE, &hashflags)) {
 				goto out;
 			}
 			/* before doing anything, tell threads to use a global lock */
@@ -304,7 +303,7 @@ int start_hash_thread(void)
 				    NULL, "kcachehash");
 	if (IS_ERR(hash_kthread)) {
 		ret = PTR_ERR(hash_kthread);
-		PRINTK("create hash_kthread error");
+		PRINTK("create hash kthread error");
 		goto out;
 	}
 
@@ -314,7 +313,7 @@ out:
 
 void stop_hash_thread(void)
 {
-	atomic_set(&do_run_thread, 0);
+	set_bit(ZOMBIE, &hashflags);
 	kthread_stop(hash_kthread);
 }
 

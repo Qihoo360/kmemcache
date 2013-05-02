@@ -1,3 +1,4 @@
+#include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/namei.h>
 #include <linux/mount.h>
@@ -108,10 +109,11 @@ static int mc_disp_kthread(void *noused)
 	struct serve_sock *pos;
 
 	while (1) {
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (!atomic_long_read(&dsper.req)) {
-			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule();
 		}
+		__set_current_state(TASK_RUNNING);
 		if (kthread_should_stop())
 			break;
 		spin_lock(&dsper.dsp_lock);
@@ -137,10 +139,11 @@ static int mc_disp_kthread(void *data)
 	struct serve_sock *ss = data;
 
 	while (1) {
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (!atomic_long_read(&ss->req)) {
-			set_current_state(TASK_UNINTERRUPTIBLE);
 			schedule();
 		}
+		__set_current_state(TASK_RUNNING);
 		if (kthread_should_stop() ||
 		    test_bit(conn_closing, &ss->state)) {
 			break;
