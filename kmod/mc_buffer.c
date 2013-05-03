@@ -362,6 +362,26 @@ int realloc_buffer(struct buffer *buf, size_t len, size_t valid)
 	}
 }
 
+void zero_buffer(struct buffer *buf)
+{
+	BUG_ON(!buf);
+
+	switch (buf->flags) {
+	case BUF_KMALLOC:
+		memset(buf->buf, 0, buf->room);
+		break;
+	case BUF_VMALLOC:
+		memset(buf->buf, 0, buf->len);
+		break;
+	case BUF_PAGES:
+		memset(buf->buf_addr, 0, buf->room);
+		break;
+	case BUF_NEGATIVE:
+	default:
+		break;
+	}
+}
+
 void free_buffer(struct buffer *buf)
 {
 	switch (buf->flags) {
@@ -379,3 +399,4 @@ void free_buffer(struct buffer *buf)
 		break;
 	}
 }
+

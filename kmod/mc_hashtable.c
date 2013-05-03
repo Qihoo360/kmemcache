@@ -55,6 +55,7 @@ int hash_init(int power)
 		PRINTK("alloc primary_hashtable error");
 		goto out;
 	} else {
+		zero_buffer(&primary_hts);
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 	}
 
@@ -139,6 +140,7 @@ static void mc_hash_expand(void)
 	if (!ret) {
 		if (settings.verbose > 1)
 			PRINTK("hash table expansion starting");
+		zero_buffer(&primary_hts);
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 		hashpower++;
 		set_bit(EXPANDING, &hashflags);

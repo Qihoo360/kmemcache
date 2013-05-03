@@ -8,7 +8,7 @@
 #include <linux/slab.h>
 
 #ifdef CONFIG_X86_32
-#define GFP_PAGES GFP_KERNEL
+#define GFP_PAGES (GFP_KERNEL | __GFP_HIGHMEM)
 #else
 #define GFP_PAGES GFP_KERNEL
 #endif
@@ -102,6 +102,7 @@ extern struct kmem_cache *buffer_cachep;
 
 extern int alloc_buffer(struct buffer *buf, size_t len);
 extern int realloc_buffer(struct buffer *buf, size_t len, size_t valid);
+extern void zero_buffer(struct buffer *buf);
 extern void free_buffer(struct buffer *buf);
 
 #ifdef CONFIG_PAGES_CACHE
