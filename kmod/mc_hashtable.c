@@ -222,7 +222,7 @@ void mc_hash_delete(const char *key, size_t nkey, u32 hv)
 static int mc_hash_thread(void *ignore)
 {
 	set_freezable();
-	while (test_bit(ZOMBIE, &hashflags)) {
+	while (!test_bit(ZOMBIE, &hashflags)) {
 		int ii = 0;
 
 		/* 
@@ -302,7 +302,7 @@ int start_hash_thread(void)
 	int ret = 0;
 
 	hash_kthread = kthread_run(mc_hash_thread,
-				    NULL, "kcachehash");
+				   NULL, "kmchash");
 	if (IS_ERR(hash_kthread)) {
 		ret = PTR_ERR(hash_kthread);
 		PRINTK("create hash kthread error");
