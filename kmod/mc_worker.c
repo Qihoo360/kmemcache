@@ -519,24 +519,14 @@ out:
 
 void mc_conn_work(struct work_struct *work)
 {
-	int ret, event = 0;
 	conn *c = container_of(work, conn, work);
 
-	if (test_bit(EV_READ, &c->event)) {
-		event = POLLIN;
-	} else if (test_bit(EV_WRITE, &c->event)) {
-		event = POLLOUT;
-	}
+	if (test_bit(EV_DEAD, &c->event))
+		goto out;
 
 	mc_worker_machine(c);
-
-	if (event && !test_bit(EV_DEAD, &c->event)) {
-		ret = c->sock->ops->poll(c->sock->file, c->sock, NULL);
-		if (event & ret) {
-			mc_queue_conn(c);
-		}
-	}
-
+	mc_queue_conn(c);
+out:
 	mc_conn_put(c);
 }
 
@@ -613,7 +603,7 @@ int workers_init(void)
 		char thread[TASK_COMM_LEN] = {0};
 		struct workqueue_struct *wq;
 
-		sprintf(thread, "mc_worker%d", i);
+		sprintf(thread, "kmcworker%d", i);
 		wq = create_singlethread_workqueue(thread);
 		if (!wq) {
 			PRINTK("create worker kthread error");

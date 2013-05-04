@@ -1,6 +1,8 @@
 #ifndef __MC_MESSENGER_H
 #define __MC_MESSENGER_H
 
+#include <linux/poll.h>
+
 struct proto_operations;
 struct conn_req;
 
@@ -44,11 +46,14 @@ struct slistbuf {
 };
 
 /* socket event bit flags */
-#define EV_OPEN		1
-#define EV_READ		2	/* only queue READ event */
-#define EV_WRITE	3	/* only queue WRITE event */
+#define EV_READ		2	/* read event, not used */
+#define EV_WRITE	3	/* write event, note used */
+#define EV_RDWR		4	/* 1 for READ, 0 for WRITE */
 #define EV_CLOSED	7	/* udp closed */
 #define EV_DEAD		9	/* about to free */
+
+#define CONN_READ	(POLLIN | POLLRDNORM | POLLRDBAND)
+#define CONN_WRITE	(POLLOUT | POLLWRNORM | POLLWRBAND)
 
 struct conn {
 	unsigned long event;

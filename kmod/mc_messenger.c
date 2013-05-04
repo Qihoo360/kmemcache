@@ -122,7 +122,7 @@ conn* mc_conn_new(struct conn_req *rq)
 	c->who = rq->who;
 	INIT_WORK(&c->work, mc_conn_work);
 	atomic_set(&c->nref, 1);
-	set_bit(EV_READ, &c->event);
+	set_bit(EV_RDWR, &c->event);
 	set_sock_callbacks(c->sock, c);
 
 	spin_lock(&c->who->lock);
@@ -222,26 +222,26 @@ int update_event(conn *c, int flag)
 
 	switch (flag) {
 	case EV_READ:
-		if (test_bit(EV_READ, &c->event))
+		if (test_bit(EV_RDWR, &c->event))
 			break;
-		if (test_and_clear_bit(EV_WRITE, &c->event)) {
-			if (work_pending(&c->work)) {
-				cancel_work_sync(&c->work);
-				mc_conn_put(c);
-			}
+		if (work_pending(&c->work)) {
+			set_bit(EV_RDWR, &c->event);
+			cancel_work_sync(&c->work);
+			mc_conn_put(c);
+		} else {
+			set_bit(EV_RDWR, &c->event);
 		}
-		set_bit(EV_READ, &c->event);
 		break;
 	case EV_WRITE:
-		if (test_bit(EV_WRITE, &c->event))
+		if (!test_bit(EV_RDWR, &c->event))
 			break;
-		if (test_and_clear_bit(EV_READ, &c->event)) {
-			if (work_pending(&c->work)) {
-				cancel_work_sync(&c->work);
-				mc_conn_put(c);
-			}
+		if (work_pending(&c->work)) {
+			clear_bit(EV_RDWR, &c->event);
+			cancel_work_sync(&c->work);
+			mc_conn_put(c);
+		} else {
+			clear_bit(EV_RDWR, &c->event);
 		}
-		set_bit(EV_WRITE, &c->event);
 		break;
 	case EV_DEAD:
 		set_bit(EV_DEAD, &c->event);
@@ -376,9 +376,32 @@ static void set_sock_callbacks(struct socket *sock, conn *c)
 
 void mc_queue_conn(conn *c)
 {
+	int poll;
+
 	if (test_bit(EV_DEAD, &c->event)) {
 		return;
 	}
+
+	poll = c->sock->ops->poll(c->sock->file, c->sock, NULL);
+	if (test_bit(EV_RDWR, &c->event)) {
+		/* EV_READ */
+		if (poll & CONN_READ) {
+			goto queue_conn;
+		} else {
+			PRINTK("mc_queue_conn %p ignore EV_READ", c);
+		}
+	} else {
+		/* EV_WRITE */
+		if (poll & CONN_WRITE) {
+			goto queue_conn;
+		} else {
+			PRINTK("mc_queue_conn %p ignore EV_WRITE", c);
+		}
+	}
+
+	return;
+
+queue_conn:
 
 	/* release in mc_conn_work */
 	if (!mc_conn_get(c)) {
