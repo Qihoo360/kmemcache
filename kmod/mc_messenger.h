@@ -47,8 +47,6 @@ struct slistbuf {
 #define EV_OPEN		1
 #define EV_READ		2	/* only queue READ event */
 #define EV_WRITE	3	/* only queue WRITE event */
-#define EV_QUEUED	5	/* in time handle policy */
-#define EV_BUSY		6	/* work is being done */
 #define EV_CLOSED	7	/* udp closed */
 #define EV_DEAD		9	/* about to free */
 

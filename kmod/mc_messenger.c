@@ -377,25 +377,20 @@ static void set_sock_callbacks(struct socket *sock, conn *c)
 void mc_queue_conn(conn *c)
 {
 	if (test_bit(EV_DEAD, &c->event)) {
-		PRINTK("mc_queue_conn %p ignoring: DEAD", c);
 		return;
 	}
 
+	/* release in mc_conn_work */
 	if (!mc_conn_get(c)) {
 		PRINTK("mc_queue_conn %p ref count 0", c);
 		return;
 	}
 
-	set_bit(EV_QUEUED, &c->event);
-	if (test_bit(EV_BUSY, &c->event)) {
-		PRINFO("mc_queue_conn %p already QUEUED", c);
-		mc_conn_put(c);
-	} else if (!queue_work(c->who->wq, &c->work)) {
+	if (!queue_work(c->who->wq, &c->work)) {
 		PRINFO("mc_queue_conn %p already on queue", c);
 		mc_conn_put(c);
 	} else {
 		PRINFO("mc_queue_conn %p", c);
 	}
 }
-
 

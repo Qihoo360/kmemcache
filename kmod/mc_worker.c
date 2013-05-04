@@ -522,31 +522,21 @@ void mc_conn_work(struct work_struct *work)
 	int ret, event = 0;
 	conn *c = container_of(work, conn, work);
 
-more:
-	if (test_bit(EV_DEAD, &c->event)) {
-		PRINFO("mc_conn_work >%p DEAD", c);
-		goto out;
-	}
 	if (test_bit(EV_READ, &c->event)) {
 		event = POLLIN;
 	} else if (test_bit(EV_WRITE, &c->event)) {
 		event = POLLOUT;
 	}
-	set_bit(EV_BUSY, &c->event);
-	clear_bit(EV_QUEUED, &c->event);
+
 	mc_worker_machine(c);
-	clear_bit(EV_BUSY, &c->event);
-	if (test_bit(EV_QUEUED, &c->event)) {
-		PRINFO("mc_conn_work >%p looping", c);
-		goto more;
-	}
+
 	if (event && !test_bit(EV_DEAD, &c->event)) {
 		ret = c->sock->ops->poll(c->sock->file, c->sock, NULL);
 		if (event & ret) {
 			mc_queue_conn(c);
 		}
 	}
-out:
+
 	mc_conn_put(c);
 }
 
