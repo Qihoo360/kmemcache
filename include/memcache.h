@@ -57,7 +57,8 @@ typedef struct {
 	__s32 slab_bulk_check;
 	rel_time_t oldest_live;
 	protocol_t binding_protocol;
-	__s32 factor;
+	__s32 factor_numerator;
+	__s32 factor_denominator;
 
 	__u8  use_cas;
 	__u8  sasl;
@@ -102,7 +103,8 @@ struct settings {
 	__s32 slab_bulk_check;
 	rel_time_t oldest_live;
 	protocol_t binding_protocol;
-	__s32 factor;
+	__s32 factor_numerator;
+	__s32 factor_denominator;
 
 	__u8  use_cas;
 	__u8  sasl;

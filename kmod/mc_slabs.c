@@ -428,7 +428,7 @@ unsigned int mc_slabs_clsid(size_t size)
  *
  * Returns zero on success, errno otherwise.
  */
-int slabs_init(size_t limit, int factor, int prealloc)
+int slabs_init(size_t limit, int factor_nume, int factor_deno, int prealloc)
 {
 	int ret = 0;
 	int i = POWER_SMALLEST - 1;
@@ -447,14 +447,14 @@ int slabs_init(size_t limit, int factor, int prealloc)
 		}
 	}
 
-	while (++i < POWER_LARGEST && size <= settings.item_size_max / factor) {
+	while (++i < POWER_LARGEST && size <= settings.item_size_max * factor_deno / factor_nume) {
 		/* Make sure items are always n-byte aligned */
 		if (size % CHUNK_ALIGN_BYTES)
 			size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES);
 
 		slabclass[i].size = size;
 		slabclass[i].perslab = settings.item_size_max / slabclass[i].size;
-		size *= factor;
+		size = size * factor_nume / factor_deno;
 		if (settings.verbose > 1) {
 			PRINTK("slab class %3d: chunk size %9u perslab %7u",
 			       i, slabclass[i].size, slabclass[i].perslab);

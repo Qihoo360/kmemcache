@@ -215,7 +215,8 @@ static int construct_settings(struct cn_msg *msg)
 	data->slab_bulk_check	  = settings.slab_bulk_check;
 	data->oldest_live	  = settings.oldest_live;
 	data->binding_protocol	  = settings.binding_protocol;
-	data->factor		  = settings.factor;
+	data->factor_numerator    = settings.factor_numerator;
+	data->factor_denominator  = settings.factor_denominator;
 	data->use_cas		  = settings.use_cas;
 	data->sasl		  = settings.sasl;
 	data->maxconns_fast	  = settings.maxconns_fast;

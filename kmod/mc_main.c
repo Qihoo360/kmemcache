@@ -198,7 +198,8 @@ static int __kmemcache_bh_init(void *unused)
 		goto del_caches;
 	}
 	if ((ret = slabs_init(settings.maxbytes,
-			      settings.factor,
+			      settings.factor_numerator,
+			      settings.factor_denominator,
 			      settings.preallocate))) {
 		PRINTK("init slabs error");
 		goto del_stats;

@@ -312,7 +312,7 @@ void	mc_stats_prefix_record_set(const char *key, size_t nkey);
 int	mc_stats_prefix_dump(struct buffer *buf);
 
 /* mc_slabs.c */
-int	slabs_init(size_t limit, int factor, int prealloc);
+int	slabs_init(size_t limit, int factor_nume, int factor_deno, int prealloc);
 void	slabs_exit(void);
 u32	mc_slabs_clsid(size_t size);
 void*	mc_slabs_alloc(size_t size, unsigned int id);

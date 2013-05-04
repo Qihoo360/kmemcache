@@ -18,6 +18,7 @@
 #include <sysexits.h>
 #include <errno.h>
 #include <pwd.h>
+#include <math.h>
 
 #include "umemcached.h"
 
@@ -265,7 +266,8 @@ static void settings_init(void)
 	settings.oldest_live	= 0;
 	settings.evict_to_free	= 1;       /* push old items out of cache when memory runs out */
 	settings.socketpath	= NULL;       /* by default, not using a unix socket */
-	settings.factor		= 2;
+	settings.factor_numerator	= 125;
+	settings.factor_denominator	= 100;
 	settings.chunk_size	= 48;         /* space for a modest key and value */
 	settings.num_threads	= 4;         /* N workers */
 	settings.num_threads_per_udp	= 0;
@@ -299,6 +301,21 @@ static void settings_init(void)
 			settings.slab_bulk_check = val;
 		}
 	}
+}
+
+static void double_int(char *fstr, int *nume, int *deno)
+{
+	int power, t = 1;
+	double factor;
+	char *pos = fstr;
+
+	while (*pos++ != '.');
+	power = strlen(pos);
+	while (power-- > 0) t *= 10;
+
+	factor = atof(fstr);
+	*nume = t * factor;
+	*deno = t;
 }
 
 static int wait_threads = 0;
@@ -584,11 +601,11 @@ int main(int argc, char *argv[])
 			pid_file = optarg;
 			break;
 		case 'f':
-			settings.factor = atoi(optarg);
-			if (settings.factor <= 1) {
+			if (atof(optarg) <= 1.0) {
 				fprintf(stderr, "Factor must be greater than 1\n");
 				return 1;
 			}
+			double_int(optarg, &settings.factor_numerator, &settings.factor_denominator);
 			break;
 		case 'n':
 			settings.chunk_size = atoi(optarg);

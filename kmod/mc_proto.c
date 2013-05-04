@@ -406,7 +406,8 @@ void mc_stat_settings(add_stat_callback add_stats, void *c)
 	APPEND_STAT("oldest", "%lu", (unsigned long)settings.oldest_live);
 	APPEND_STAT("evictions", "%s", settings.evict_to_free ? "on" : "off");
 	APPEND_STAT("umask", "%o", settings.access);
-	APPEND_STAT("growth_factor", "%d", settings.factor);
+	APPEND_STAT("growth_factor_numerator", "%d", settings.factor_numerator);
+	APPEND_STAT("growth_factor_denominator", "%d", settings.factor_denominator);
 	APPEND_STAT("chunk_size", "%d", settings.chunk_size);
 	APPEND_STAT("num_threads", "%d", settings.num_threads);
 	APPEND_STAT("num_threads_per_udp", "%d", settings.num_threads_per_udp);
