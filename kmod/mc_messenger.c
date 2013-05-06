@@ -151,6 +151,10 @@ void mc_conn_close(conn *c)
 	}
 	set_bit(EV_DEAD, &c->event);
 	if (!IS_UDP(c->transport)) {
+		if (work_pending(&c->work)) {
+			cancel_work_sync(&c->work);
+			mc_conn_put(c);
+		}
 		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
 		sock_release(c->sock);
 		c->sock = NULL;
@@ -388,7 +392,7 @@ void mc_queue_conn(conn *c)
 		if (poll & CONN_READ) {
 			goto queue_conn;
 		} else {
-			PRINTK("mc_queue_conn %p ignore EV_READ", c);
+			PRINFO("mc_queue_conn %p ignore EV_READ", c);
 		}
 	} else {
 		/* EV_WRITE */

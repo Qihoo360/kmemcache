@@ -467,50 +467,40 @@ out:
 	return ret;
 }
 
-static int unlink_socket_file(const char *path)
+static int unlink_socket_file(const char *name)
 {
 	int ret = 0;
-	struct nameidata nd;
-	struct dentry *dentry;
 
-	if (!path) {
+	struct path path;
+
+	if (!name) {
 		PRINTK("unix socket path arg error");
 		ret = -EINVAL;
 		goto out;
 	}
-	if (strlen(path) + 1 > UNIX_PATH_MAX) {
+	if (strlen(name) + 1 > UNIX_PATH_MAX) {
 		PRINTK("unix socket path too long");
 		ret = -EINVAL;
 		goto out;
 	}
-	if (path_lookup(path, LOOKUP_PARENT, &nd)) {
+	if (kern_path(name, LOOKUP_FOLLOW, &path)) {
 		PRINTK("parse unix socket path error");
 		ret = -EINVAL;
 		goto out;
 	}
-	mutex_lock_nested(&nd.path.dentry->d_inode->i_mutex, I_MUTEX_PARENT);
-	dentry = lookup_one_len(nd.last.name, nd.path.dentry, nd.last.len);
-	if (IS_ERR(dentry)) {
-		PRINTK("open unix socket path error");
-		ret = -EINVAL;
-		goto out_unlock;
-	}
-	if (dentry->d_inode && S_ISSOCK(dentry->d_inode->i_mode)) {
-		if ((ret = mnt_want_write(nd.path.mnt))) {
+	if (path.dentry->d_inode && S_ISSOCK(path.dentry->d_inode->i_mode)) {
+		if ((ret = mnt_want_write(path.mnt))) {
 			PRINTK("access permission error");
-			goto put_dentry;
+			goto put;
 		}
-		if ((ret = vfs_unlink(nd.path.dentry->d_inode, dentry))) {
+		if ((ret = vfs_unlink(path.dentry->d_parent->d_inode, path.dentry))) {
 			PRINTK("delete unix socket file error");
 		}
-		mnt_drop_write(nd.path.mnt);
+		mnt_drop_write(path.mnt);
 	}
 
-put_dentry:
-	dput(dentry);
-out_unlock:
-	mutex_unlock(&nd.path.dentry->d_inode->i_mutex);
-	path_put(&nd.path);
+put:
+	path_put(&path);
 out:
 	return ret;
 }

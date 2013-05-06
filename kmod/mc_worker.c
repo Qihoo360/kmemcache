@@ -521,9 +521,6 @@ void mc_conn_work(struct work_struct *work)
 {
 	conn *c = container_of(work, conn, work);
 
-	if (test_bit(EV_DEAD, &c->event))
-		goto out;
-
 	mc_worker_machine(c);
 	mc_queue_conn(c);
 out:

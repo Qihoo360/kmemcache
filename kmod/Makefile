@@ -15,7 +15,7 @@ else
 endif
 
 EXTRA_CFLAGS += $(DEBFLAGS)
-EXTRA_CFLAGS += -I $(PWD)/../include
+EXTRA_CFLAGS += -I$(PWD)/../include
 
 ifeq ($(CONFIG_CN_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_CN_CACHE
