@@ -159,6 +159,7 @@ void	mc_conn_cleanup(conn *c);
 conn*	mc_conn_get(conn *c);
 void	mc_conn_put(conn *c);
 void	mc_queue_conn(conn *c);
+void	mc_requeue_conn(conn *c);
 int	update_event(conn *c, int flag);
 
 void	worker_set_sock_callbacks(struct socket *sock, conn *c);

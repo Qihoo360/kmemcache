@@ -9,7 +9,7 @@ CONFIG_STACK_OPT=y
 CONFIG_SINGLE_DISPATCHER=n
 
 ifeq ($(CONFIG_DEBUG),y)
-  DEBFLAGS = -O -Wall -g
+  DEBFLAGS = -O -Wall -g -DCONFIG_DEBUG
 else
   DEBFLAGS = -O2
 endif

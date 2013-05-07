@@ -504,6 +504,8 @@ static void mc_conn_new_work(struct work_struct *work)
 	if (IS_ERR(c)) {
 		PRINTK("create new conn error");
 		goto err_out;
+	} else {
+		mc_queue_conn(c);
 	}
 
 	goto out;
@@ -522,8 +524,7 @@ void mc_conn_work(struct work_struct *work)
 	conn *c = container_of(work, conn, work);
 
 	mc_worker_machine(c);
-	mc_queue_conn(c);
-out:
+	mc_requeue_conn(c);
 	mc_conn_put(c);
 }
 
@@ -535,7 +536,11 @@ out:
 int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 			 int rbuflen, net_transport_t transport)
 {
+#ifdef CONFIG_SINGLE_DISPATCHER
 	static int last = -1;
+#else
+	static atomic_t last = ATOMIC_INIT(-1);
+#endif
 
 	int ret = 0, tid;
 	struct conn_req *rq;
@@ -548,8 +553,13 @@ int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 		goto out;
 	}
 
+#ifdef CONFIG_SINGLE_DISPATCHER
 	tid = (last + 1) % settings.num_threads;
 	last= tid;
+#else
+	tid = atomic_inc_return(&last);
+	tid %= settings.num_threads;
+#endif
 	worker = &worker_threads[tid];
 
 	rq->state = state;

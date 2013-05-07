@@ -186,23 +186,25 @@ static void inline _queue(struct serve_sock *ss)
 /* data available on socket, or listen socket received a connect */
 static void mc_disp_data_ready(struct sock *sk, int unused)
 {
-	struct serve_sock *ss = 
-		(struct serve_sock *)sk->sk_user_data;
-	if (sk->sk_state == TCP_LISTEN)
-		_queue(ss);
-	PRINFO("mc_disp_data_ready");
+	PRINFO("mc_disp_data_ready state=%d", sk->sk_state);
 }
 
 /* socket has buffer space for writing */
 static void mc_disp_write_space(struct sock *sk)
 {
-	PRINFO("mc_disp_write_space");
+	PRINFO("mc_disp_write_space state=%d", sk->sk_state);
 }
 
 /* socket's state has changed */
 static void mc_disp_state_change(struct sock *sk)
 {
-	PRINFO("mc_disp_state_change");
+	struct serve_sock *ss =
+		(struct serve_sock *)sk->sk_user_data;
+
+	PRINFO("mc_disp_state_change state=%d", sk->sk_state);
+
+	if (sk->sk_state == TCP_ESTABLISHED)
+		_queue(ss);
 }
 
 static void set_sock_callbacks(struct socket *sock,

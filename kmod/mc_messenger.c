@@ -329,9 +329,9 @@ static void mc_worker_data_ready(struct sock *sk, int unused)
 {
 	conn *c = sk->sk_user_data;
 
+	PRINFO("data_ready %p state=%d", c, sk->sk_state);
+
 	if (sk->sk_state != TCP_CLOSE_WAIT) {
-		PRINFO("data_ready %p state=%d, queueing work",
-		       c, sk->sk_state);
 		mc_queue_conn(c);
 	}
 }
@@ -341,8 +341,9 @@ static void mc_worker_write_space(struct sock *sk)
 {
 	conn *c = sk->sk_user_data;
 
+	PRINFO("mc_worker_write_space on %p state=%d", c, sk->sk_state);
+
 	if (sk->sk_state != TCP_CLOSE_WAIT) {
-		PRINFO("write_space on %p, queueing work", c);
 		mc_queue_conn(c);
 	}
 
@@ -355,11 +356,14 @@ static void mc_worker_state_change(struct sock *sk)
 {
 	conn *c = sk->sk_user_data;
 
+	PRINFO("mc_worker_state_change on %p state=%d", c, sk->sk_state);
+
 	switch (sk->sk_state) {
 	case TCP_CLOSE:
-		PRINFO("state_change: TCP_CLOSE");
 	case TCP_CLOSE_WAIT:
-		PRINFO("state_change: TCP_CLOSE_WAIT");
+		mc_queue_conn(c);
+		break;
+	case TCP_ESTABLISHED:
 		mc_queue_conn(c);
 		break;
 	}
@@ -378,35 +382,8 @@ static void set_sock_callbacks(struct socket *sock, conn *c)
 	sk->sk_state_change = mc_worker_state_change;
 }
 
-void mc_queue_conn(conn *c)
+static inline void __queue_conn(conn *c)
 {
-	int poll;
-
-	if (test_bit(EV_DEAD, &c->event)) {
-		return;
-	}
-
-	poll = c->sock->ops->poll(c->sock->file, c->sock, NULL);
-	if (test_bit(EV_RDWR, &c->event)) {
-		/* EV_READ */
-		if (poll & CONN_READ) {
-			goto queue_conn;
-		} else {
-			PRINFO("mc_queue_conn %p ignore EV_READ", c);
-		}
-	} else {
-		/* EV_WRITE */
-		if (poll & CONN_WRITE) {
-			goto queue_conn;
-		} else {
-			PRINTK("mc_queue_conn %p ignore EV_WRITE", c);
-		}
-	}
-
-	return;
-
-queue_conn:
-
 	/* release in mc_conn_work */
 	if (!mc_conn_get(c)) {
 		PRINTK("mc_queue_conn %p ref count 0", c);
@@ -421,3 +398,43 @@ queue_conn:
 	}
 }
 
+void mc_queue_conn(conn *c)
+{
+	if (test_bit(EV_DEAD, &c->event)) {
+		PRINFO("mc_queue_conn %p ignore EV_DEAD", c);
+		return;
+	}
+
+	__queue_conn(c);
+}
+
+void mc_requeue_conn(conn *c)
+{
+	int poll;
+
+	if (test_bit(EV_DEAD, &c->event)) {
+		PRINFO("mc_requeue_conn %p ignore EV_DEAD", c);
+		return;
+	}
+
+	poll = c->sock->ops->poll(c->sock->file, c->sock, NULL);
+	if (test_bit(EV_RDWR, &c->event)) {
+		if (poll & CONN_READ) {
+			goto queue_conn;
+		} else {
+			PRINFO("mc_queue_conn %p ignore EV_READ", c);
+		}
+	} else {
+		if (poll & CONN_WRITE) {
+			goto queue_conn;
+		} else {
+			PRINTK("mc_queue_conn %p ignore EV_WRITE", c);
+		}
+	}
+
+	return;
+
+queue_conn:
+	__queue_conn(c);
+
+}
