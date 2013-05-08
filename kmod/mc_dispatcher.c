@@ -53,13 +53,47 @@ void mc_accept_new_conns(int enable)
 	spin_unlock(&dsper.sock_lock);
 }
 
+/*
+ * sock callback functions for accepted socket
+ */
+
+/* data available on socket, or listen socket received a connect */
+static void mc_anon_data_ready(struct sock *sk, int unused)
+{
+	PRINFO("mc_anon_data_ready state=%d", sk->sk_state);
+}
+
+/* socket has buffer space for writing */
+static void mc_anon_write_space(struct sock *sk)
+{
+	PRINFO("mc_anon_write_space state=%d", sk->sk_state);
+}
+
+/* socket's state has changed */
+static void mc_anon_state_change(struct sock *sk)
+{
+	PRINFO("mc_anon_state_change state=%d", sk->sk_state);
+}
+
+static inline void set_anon_sock_callbacks(struct socket *sock)
+{
+	struct sock *sk = sock->sk;
+
+	sk->sk_user_data    = NULL;
+	sk->sk_data_ready   = mc_anon_data_ready;
+	sk->sk_write_space  = mc_anon_write_space;
+	sk->sk_state_change = mc_anon_state_change;
+}
+
 static void mc_sock_work(struct serve_sock *ss)
 {
 	int ret = 0;
 	struct socket *nsock;
 
 	ret = kernel_accept(ss->sock, &nsock, O_NONBLOCK);
-	if (ret) {
+	if (!ret) {
+		set_anon_sock_callbacks(nsock);
+	} else {
 		if (ret == -EMFILE) {
 			if (settings.verbose > 0) {
 				PRINTK("too many open connections");
