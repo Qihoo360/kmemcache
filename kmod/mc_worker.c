@@ -523,8 +523,13 @@ void mc_conn_work(struct work_struct *work)
 {
 	conn *c = container_of(work, conn, work);
 
+	if (test_bit(EV_DEAD, &c->event))
+		goto put_con;
+
 	mc_worker_machine(c);
 	mc_requeue_conn(c);
+
+put_con:
 	mc_conn_put(c);
 }
 
@@ -674,7 +679,10 @@ void workers_exit(void)
 		worker = &worker_threads[i];
 		/* don't need to lock here */
 		list_for_each_entry_safe(c, n, &worker->list, list) {
-			mc_conn_close(c);
+			if (IS_UDP(c->transport))
+				mc_conn_cleanup(c);
+			else
+				mc_conn_close(c);
 			mc_conn_put(c);
 		}
 	}
