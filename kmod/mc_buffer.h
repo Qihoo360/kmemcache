@@ -19,7 +19,7 @@
 #define BUF_PAGES	3
 
 #define BUF_KMALLOC_MAX	PAGE_SIZE / 2
-#define BUF_PAGES_MAX	16 * PAGE_SIZE
+#define BUF_PAGES_MAX	2 * 1024 * 1024	/* 2M */
 
 #ifdef  CONFIG_PAGES_CACHE
 #include <linux/list.h>

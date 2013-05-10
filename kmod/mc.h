@@ -11,6 +11,7 @@
 #include "connector.h"
 #include "mc_buffer.h"
 #include "mc_uparam.h"
+#include "mc_oom.h"
 
 /* Maximum length of a key */
 #define KEY_MAX_LEN		250

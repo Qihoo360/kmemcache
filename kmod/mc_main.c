@@ -233,11 +233,17 @@ static int __kmemcache_bh_init(void *unused)
 		PRINTK("init server socket error");
 		goto del_timer;
 	}
+	if ((ret = oom_init())) {
+		PRINTK("init oom error");
+		goto del_server;
+	}
 
 	cache_bh_status = 1;
 	PRINTK("start kmemcache server success");
 	return 0;
 
+del_server:
+	server_exit();
 del_timer:
 	timer_exit();
 del_slab_thread:
@@ -325,6 +331,7 @@ static void __exit kmemcache_exit(void)
 		stats_exit();
 		caches_info_exit();
 		pages_cache_exit();
+		oom_exit();
 	} else {
 		unregister_kmemcache_bh();
 	}

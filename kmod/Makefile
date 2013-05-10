@@ -8,6 +8,9 @@ CONFIG_STACK_OPT=y
 # all listen sockets share a thread 
 CONFIG_SINGLE_DISPATCHER=n
 
+# out of memory managment
+CONFIG_OOM=y
+
 ifeq ($(CONFIG_DEBUG),y)
   DEBFLAGS = -O -Wall -g -DCONFIG_DEBUG
 else
@@ -37,6 +40,10 @@ ifeq ($(CONFIG_SINGLE_DISPATCHER),y)
   EXTRA_CFLAGS += -DCONFIG_SINGLE_DISPATCHER
 endif
 
+ifeq ($(CONFIG_OOM),y)
+  EXTRA_CFLAGS += -DCONFIG_OOM
+endif
+
 obj-m	+= kmodhelper.o kmemcache.o
 
 kmemcache-y :=	mc_strops.o	\
@@ -57,6 +64,7 @@ kmemcache-y :=	mc_strops.o	\
 		mc_uparam.o
 
 kmemcache-$(CONFIG_SASL)	+= mc_sasl.o
+kmemcache-$(CONFIG_OOM)		+= mc_oom.o
 
 
 all:
