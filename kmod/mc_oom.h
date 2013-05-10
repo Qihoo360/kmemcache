@@ -5,7 +5,7 @@
 extern int oom_init(void);
 extern void oom_exit(void);
 #else
-static inline int oom_init(void) { return 1; }
+static inline int oom_init(void) { return 0; }
 static inline void oom_exit(void) { }
 #endif
 
