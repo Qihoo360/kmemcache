@@ -1,3 +1,4 @@
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -35,6 +36,17 @@ int safe_strtoull(const char *str, u64 *out)
 	}
 	return -EINVAL;
 }
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
+static long long __simple_strtoll(const char *cp, char **endp, unsigned int base)
+{
+	if (*cp == '-')
+		return -simple_strtoull(cp + 1, endp, base);
+	return simple_strtoull(cp, endp, base);
+}
+
+#define simple_strtoll __simple_strtoll
+#endif
 
 int safe_strtoll(const char *str, s64 *out)
 {

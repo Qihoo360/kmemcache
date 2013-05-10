@@ -584,10 +584,10 @@ static int server_socket_unix(const char *path, int access_mask)
 	if ((ret = kernel_bind(ss->sock, (struct sockaddr *)&addr,
 			       sizeof(addr) - 1))) {
 		PRINTK("bind unix socket error");
-		xchg(&current->fs->umask, access_mask);
+		(void)xchg(&current->fs->umask, access_mask);
 		goto release_sock;
 	}
-	xchg(&current->fs->umask, access_mask);
+	(void)xchg(&current->fs->umask, access_mask);
 	if ((ret = kernel_listen(ss->sock, settings.backlog))) {
 		PRINTK("listen unix socket error");
 		goto release_sock;

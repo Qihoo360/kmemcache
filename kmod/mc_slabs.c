@@ -137,7 +137,7 @@ static void *mc_do_slabs_alloc(size_t size, unsigned int id)
 	if (ret) {
 		p->requested += size;
 	} else {
-		PRINTK("alloc slab page error");
+		PRINFO("alloc slab page error");
 	}
 
 	return ret;
