@@ -16,6 +16,10 @@ int timeout __read_mostly = 10;
 module_param(timeout, int, 0);
 MODULE_PARM_DESC(timeout, "timeout in seconds for msg from umemcached");
 
+unsigned long slabsize __read_mostly = 95;
+module_param(slabsize, ulong, 0);
+MODULE_PARM_DESC(slabsize, "percent of totalram that slabs could use");
+
 /* initialize command from umemcached */
 static int cache_bh_status;
 static struct cn_id cache_bh_id = {
@@ -96,22 +100,6 @@ static struct cache_info {
 	size_t size;
 	void (*ctor)(void *);
 } caches_info[] = {
-#ifdef CONFIG_BUFFER_CACHE
-	{
-		.cachep = &buffer_cachep,
-		.name	= "mc_buffer_cache",
-		.size	= sizeof(struct buffer),
-		.ctor	= NULL
-	},
-#endif
-#ifdef CONFIG_LISTEN_CACHE
-	{
-		.cachep = &listen_cachep,
-		.name	= "mc_listen_cache",
-		.size	= sizeof(struct server_work),
-		.ctor	= NULL
-	},
-#endif
 	{
 		.cachep	= &prefix_cachep,
 		.name	= "mc_prefix_cache",
@@ -220,8 +208,7 @@ static int __kmemcache_bh_init(void *unused)
 		PRINTK("init hashtable kthread error");
 		goto del_workers;
 	}
-	if (settings.slab_reassign &&
-	    (ret = start_slab_thread())) {
+	if ((ret = start_slab_thread())) {
 		PRINTK("init slab kthread error");
 		goto del_hash_thread;
 	}
@@ -239,7 +226,7 @@ static int __kmemcache_bh_init(void *unused)
 	}
 
 	cache_bh_status = 1;
-	PRINTK("start kmemcache server success");
+	PRINTK("start server success");
 	return 0;
 
 del_server:
@@ -266,7 +253,7 @@ del_caches:
 del_set:
 	settings_exit();
 out:
-	PRINTK("start kmemcache server error");
+	PRINTK("start server error");
 	return ret;
 }
 
@@ -321,8 +308,7 @@ static void __exit kmemcache_exit(void)
 	if (cache_bh_status) {
 		server_exit();
 		timer_exit();
-		if (settings.slab_reassign)
-			stop_slab_thread();
+		stop_slab_thread();
 		stop_hash_thread();
 		workers_exit();
 		dispatcher_exit();
@@ -330,8 +316,9 @@ static void __exit kmemcache_exit(void)
 		slabs_exit();
 		stats_exit();
 		caches_info_exit();
-		pages_cache_exit();
 		oom_exit();
+
+		PRINTK("stop server success");
 	} else {
 		unregister_kmemcache_bh();
 	}

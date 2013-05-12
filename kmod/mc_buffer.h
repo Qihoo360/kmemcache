@@ -17,21 +17,10 @@
 #define BUF_KMALLOC	1
 #define BUF_VMALLOC	2
 #define BUF_PAGES	3
+#define BUF_FLAGS_MAX	4
 
-#define BUF_KMALLOC_MAX	PAGE_SIZE / 2
-#define BUF_PAGES_MAX	2 * 1024 * 1024	/* 2M */
-
-#ifdef  CONFIG_PAGES_CACHE
-#include <linux/list.h>
-
-struct pages {
-	unsigned int order;
-	struct page *page;
-	void *buf;
-
-	struct list_head list;
-};
-#endif
+#define BUF_KMALLOC_MAX	PAGE_SIZE
+#define BUF_PAGES_MAX	1024 * 1024	/* 1M */
 
 struct buffer {
 	/*
@@ -45,31 +34,37 @@ struct buffer {
 	/*
 	 * for kmalloc, ksize(p)
 	 * for alloc_pages, bytes size
+	 * for vmalloc, request size
 	 */
 	unsigned int room: 29;
 
-	/* request len */
-	size_t len;
-
-	union {
-		void *buf;
-#ifdef CONFIG_PAGES_CACHE
-		struct pages *_pages;
-#define buf_page _pages->page
-#define buf_addr _pages->buf
-#define buf_order _pages->order
-#else
-		struct {
-			unsigned int _order;
-			struct page *_page;
-			void *_buf;
-		};
-#define buf_page _page
-#define buf_addr _buf
-#define buf_order _order
+	void *buf;
+#ifdef CONFIG_X86_32
+	struct page *_page;
 #endif
-	};
 };
+
+#ifdef CONFIG_X86_32
+#define __INIT_BUFFER(buf) {			\
+	.flags	= BUF_NEGATIVE,			\
+	.room	= 0,				\
+	.buf	= NULL,				\
+	._page	= NULL }
+#else
+#define __INIT_BUFFER(buf) {			\
+	.flags	= BUF_NEGATIVE,			\
+	.room	= 0,				\
+	.buf	= NULL }
+
+#endif
+
+#define DECLEARE_BUFFER(name)			\
+	struct buffer name = __INIT_BUFFER(name)
+
+#define init_buffer(buf)			\
+	do {					\
+		memset((buf), 0, sizeof(*(buf)));\
+	} while (0)
 
 #define BUFFER(b)			\
 ({					\
@@ -77,13 +72,11 @@ struct buffer {
  	switch ((b)->flags) {		\
  	case BUF_KMALLOC:		\
  	case BUF_VMALLOC:		\
+ 	case BUF_PAGES:			\
  		_buf = (b)->buf;	\
  		break;			\
- 	case BUF_PAGES:			\
- 		_buf = (b)->buf_addr;	\
- 		break;			\
  	default:			\
- 		BUG_ON(1);		\
+ 		BUG();			\
  		break;			\
  	}				\
  	_buf;				\
@@ -96,19 +89,27 @@ struct buffer {
 		(ptr) = (typeof(*(ptr)) *)_buf;	\
 	} while (0)
 
-#ifdef CONFIG_BUFFER_CACHE
-extern struct kmem_cache *buffer_cachep;
-#endif
+/**
+ * alloc_buffer() - wapper of kmalloc/vmalloc/pages
+ * @buf		: !null
+ * @len		: request buffer size
+ * @mask	: gfp mask
+ * 
+ * return 0 success, errno otherwise
+ */
+extern int alloc_buffer(struct buffer *buf, size_t len, gfp_t mask);
 
-extern int alloc_buffer(struct buffer *buf, size_t len);
-extern int realloc_buffer(struct buffer *buf, size_t len, size_t valid);
-extern void zero_buffer(struct buffer *buf);
+/**
+ * realloc_buffer() - realloc buffer or alloc new buffer, dumping on buffer's flags
+ * @buf		: !null
+ * @len		: request new size, greater or less than previous size
+ * @mask	: gfp mask
+ * 
+ * return 0 success, errno otherwise
+ */
+extern int realloc_buffer(struct buffer *buf, size_t len, size_t valid, gfp_t mask);
+
 extern void free_buffer(struct buffer *buf);
-
-#ifdef CONFIG_PAGES_CACHE
-extern void pages_cache_exit(void);
-#else
-static inline void pages_cache_exit(void) {}
-#endif
+extern void free_buffer_init(struct buffer *buf);
 
 #endif /* __MC_BUFFER_H */

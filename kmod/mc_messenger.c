@@ -59,7 +59,7 @@ static void mc_conn_free(conn *c)
 								\
 		size = (_size) * sizeof(typeof(*(_val)));	\
 		buf = &container_of(&(_val), _type, _mem)->_buf;\
-		ret = alloc_buffer(buf, size);			\
+		ret = alloc_buffer(buf, size, 0);		\
 		if (ret) {					\
 			PRINTK("alloc buffer error");		\
 			goto OOM;				\

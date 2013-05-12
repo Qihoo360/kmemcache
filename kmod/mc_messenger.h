@@ -10,6 +10,7 @@ struct simpbuf {
 	struct buffer _buf;
 	char *buf;
 	char *cur;
+	int len;
 	int bytes;
 };
 
@@ -74,13 +75,13 @@ struct conn {
 	struct simpbuf	_rbuf;
 #define cn_rbuf		_rbuf.buf	/* read commands into */
 #define cn_rcurr	_rbuf.cur	/* parse commands here */
-#define cn_rsize	_rbuf._buf.len	/* sizeof cn_rbuf */
+#define cn_rsize	_rbuf.len	/* sizeof cn_rbuf */
 #define cn_rbytes	_rbuf.bytes	/* sizeof of unparsed form cn_rcurr */
 
 	struct simpbuf	_wbuf;
 #define cn_wbuf		_wbuf.buf
 #define cn_wcurr	_wbuf.cur
-#define cn_wsize	_wbuf._buf.len
+#define cn_wsize	_wbuf.len
 #define cn_wbytes	_wbuf.bytes
 
 	/* which state to go into after finishing current write */
@@ -142,6 +143,7 @@ struct conn {
 	/* current stats command */
 	struct buffer stats;
 	size_t offset;
+	size_t stats_len;
 
 	/* binary protocol stuff */
 	protocol_binary_request_header bin_header;
@@ -177,7 +179,7 @@ static inline int realloc_simpbuf(struct simpbuf *sbuf,
 
 	if (move && sbuf->cur != sbuf->buf)
 		memmove(sbuf->buf, sbuf->cur, sbuf->bytes);
-	if (realloc_buffer(buf, len, valid)) {
+	if (realloc_buffer(buf, len, valid, 0)) {
 		res = -ENOMEM;
 	} else {
 		BUFFER_PTR(buf, sbuf->buf);
@@ -197,7 +199,8 @@ static inline int realloc_ilistbuf(struct ilistbuf *ibuf,
 
 	if (realloc_buffer(buf,
 			   len * sizeof(item *),
-			   valid * sizeof(item *))) {
+			   valid * sizeof(item *),
+			   0)) {
 		res = -ENOMEM;
 	} else {
 		BUFFER_PTR(buf, ibuf->ilist);
@@ -215,7 +218,8 @@ static inline int realloc_slistbuf(struct slistbuf *sbuf,
 
 	if (realloc_buffer(buf,
 			   len * sizeof(char *),
-			   valid * sizeof(char *))) {
+			   valid * sizeof(char *),
+			   0)) {
 		res = -ENOMEM;
 	} else {
 		BUFFER_PTR(buf, sbuf->suffixlist);
@@ -233,7 +237,8 @@ static inline int realloc_msghdrbuf(struct msghdrbuf *mbuf,
 
 	if (realloc_buffer(buf,
 			   len * sizeof(struct msghdr),
-			   valid * sizeof(struct msghdr))) {
+			   valid * sizeof(struct msghdr),
+			   0)) {
 		res = -ENOMEM;
 	} else {
 		BUFFER_PTR(buf, mbuf->msglist);
@@ -251,7 +256,8 @@ static inline int realloc_kvecbuf(struct kvecbuf *vbuf,
 
 	if (realloc_buffer(buf,
 			   len * sizeof(struct kvec),
-			   valid * sizeof(struct kvec))) {
+			   valid * sizeof(struct kvec),
+			   0)) {
 		res = -ENOMEM;
 	} else {
 		BUFFER_PTR(buf, vbuf->iov);

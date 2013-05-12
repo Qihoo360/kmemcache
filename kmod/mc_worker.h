@@ -91,9 +91,9 @@ item*	mc_item_touch(struct worker_thread *worker, const char *key, size_t nkey, 
 int	mc_item_link(struct worker_thread *worker, item *it);
 void	mc_item_remove(struct worker_thread *worker, item *it);
 int	mc_item_replace(item *it, item *new_it, u32 hv);
-void	mc_item_stats(add_stat_callback add_stats, void *c);
-void	mc_item_stats_totals(add_stat_callback add_stats, void *c);
-void	mc_item_stats_sizes(add_stat_callback add_stats, void *c);
+void	mc_item_stats(add_stat_fn f, void *c);
+void	mc_item_stats_totals(add_stat_fn f, void *c);
+void	mc_item_stats_sizes(add_stat_fn f, void *c);
 void	mc_item_unlink(struct worker_thread *worker, item *it);
 void	mc_item_update(struct worker_thread *worker, item *it);
 delta_result_t mc_add_delta(struct worker_thread *worker, conn *c,

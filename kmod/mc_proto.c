@@ -328,7 +328,7 @@ store_item_t mc_do_store_item(item *it, int comm, conn* c, u32 hv)
 	return stored;
 }
 
-void mc_append_stat(const char *name, add_stat_callback add_stats,
+void mc_append_stat(const char *name, add_stat_fn f,
 		    conn *c, const char *fmt, ...)
 {
 	char val_str[STAT_VAL_LEN];
@@ -339,7 +339,7 @@ void mc_append_stat(const char *name, add_stat_callback add_stats,
 	vlen = vsnprintf(val_str, sizeof(val_str) - 1, fmt, ap);
 	va_end(ap);
 
-	add_stats(name, strlen(name), val_str, vlen, c);
+	f(name, strlen(name), val_str, vlen, c);
 }
 
 static int grow_stats_buf(conn *c, size_t needed)
@@ -352,7 +352,7 @@ static int grow_stats_buf(conn *c, size_t needed)
 		nsize = 1024;
 		available = c->offset = 0;
 	} else {
-		nsize = c->stats.len;
+		nsize = c->stats_len;
 		available = nsize - c->offset;
 	}
 
@@ -362,9 +362,12 @@ static int grow_stats_buf(conn *c, size_t needed)
 	}
 
 	if (c->stats.flags == BUF_NEGATIVE) {
-		ret = alloc_buffer(&c->stats, nsize);
-	} else if (nsize != c->stats.len) {
-		ret = realloc_buffer(&c->stats, nsize, c->stats.len);
+		ret = alloc_buffer(&c->stats, nsize, 0);
+	} else if (nsize != c->stats_len) {
+		ret = realloc_buffer(&c->stats, nsize, c->stats_len, 0);
+	}
+	if (!ret) {
+		c->stats_len = nsize;
 	}
 	return ret;
 }
@@ -396,7 +399,7 @@ void mc_append_stats(const char *key, const u16 klen, const char *val,
 	}
 }
 
-void mc_stat_settings(add_stat_callback add_stats, void *c)
+void mc_stat_settings(add_stat_fn f, void *c)
 {
 	APPEND_STAT("maxbytes", "%u", (unsigned int)settings.maxbytes);
 	APPEND_STAT("maxconns", "%d", settings.maxconns);
@@ -428,7 +431,7 @@ void mc_stat_settings(add_stat_callback add_stats, void *c)
 }
 
 /* return server specific stats only */
-void mc_server_stats(add_stat_callback add_stats, conn *c)
+void mc_server_stats(add_stat_fn f, conn *c)
 {
 	pid_t pid = current->pid;
 	rel_time_t now = current_time;
@@ -541,7 +544,7 @@ void mc_out_string(conn *c, const char *str)
 /* set up a conn to write a buffer then free it, used for stats */
 void write_and_free(conn *c, struct buffer *buf, int bytes)
 {
-	if (buf && buf->flags != BUF_NEGATIVE) {
+	if (bytes > 0 && buf && buf->flags != BUF_NEGATIVE) {
 		memcpy(&c->write_and_free, buf, sizeof(*buf));
 		c->cn_wcurr = (char *)BUFFER(buf);
 		c->cn_wbytes = bytes;

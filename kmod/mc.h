@@ -97,14 +97,14 @@
 
 /** Append a simple stat with a stat name, value format and value */
 #define APPEND_STAT(name, fmt, val) \
-	mc_append_stat(name, add_stats, c, fmt, val);
+	mc_append_stat(name, f, c, fmt, val);
 
 /** Append an indexed stat with a stat name (with format), value format
     and value */
 #define APPEND_NUM_FMT_STAT(name_fmt, num, name, fmt, val)          \
     klen = snprintf(key_str, STAT_KEY_LEN, name_fmt, num, name);    \
     vlen = snprintf(val_str, STAT_VAL_LEN, fmt, val);               \
-    add_stats(key_str, klen, val_str, vlen, c);
+    f(key_str, klen, val_str, vlen, c);
 
 /** Common APPEND_NUM_FMT_STAT format. */
 #define APPEND_NUM_STAT(num, name, fmt, val) \
@@ -119,9 +119,9 @@
  * @param vlen length of the value
  * @parm cookie magic callback cookie
  */
-typedef void (*add_stat_callback)(const char *key, u16 klen,
-				  const char *val, u32 vlen,
-				  const void *cookie);
+typedef void (*add_stat_fn)(const char *key, u16 klen,
+			    const char *val, u32 vlen,
+			    const void *cookie);
 
 typedef enum {
 	conn_listening,	/* the socket which listens for connections */
@@ -151,14 +151,6 @@ typedef enum {
 	bin_reading_sasl_auth_data,
 	bin_reading_touch_key,
 } bin_substate_t;
-
-typedef enum {
-	REASSIGN_OK,
-	REASSIGN_RUNNING,
-	REASSIGN_BADCLASS,
-	REASSIGN_NOSPACE,
-	REASSIGN_SRC_DST_SAME
-} reassign_result_t;
 
 #define NREAD_ADD	1
 #define NREAD_SET	2
@@ -263,24 +255,8 @@ struct _stritem {
 	/* then data with terminating \r\n (no terminating null; it's binary!) */
 };
 
-#define SLAB_KTHREAD_ZOMBIE	1	
-struct slab_rebal {
-	unsigned long flag;
-	struct task_struct *tsk;
-	wait_queue_head_t wq;
-
-	struct mutex lock;
-	void *slab_start;
-	void *slab_end;
-	void *slab_pos;
-	int s_clsid;
-	int d_clsid;
-	int busy_items;
-	u8 done;
-	u8 signal;
-};
-
 typedef struct conn conn;
+#include "mc_slabs.h"
 #include "mc_proto.h"
 #include "mc_messenger.h"
 #include "mc_worker.h"
@@ -291,7 +267,6 @@ extern struct stats stats;
 extern rel_time_t process_started;
 extern unsigned int hashpower;
 extern struct dispatcher_thread dispatcher;
-extern struct slab_rebal slab_rebal;
 
 extern spinlock_t stats_lock;
 extern struct mutex cache_lock;
@@ -312,21 +287,6 @@ void	mc_stats_prefix_record_delete(const char *key, size_t nkey);
 void	mc_stats_prefix_record_set(const char *key, size_t nkey);
 int	mc_stats_prefix_dump(struct buffer *buf);
 
-/* mc_slabs.c */
-int	slabs_init(size_t limit, int factor_nume, int factor_deno, int prealloc);
-void	slabs_exit(void);
-u32	mc_slabs_clsid(size_t size);
-void*	mc_slabs_alloc(size_t size, unsigned int id);
-void	mc_slabs_free(void *ptr, size_t size, unsigned int id);
-void	mc_slabs_adjust_mem_requested(unsigned int id, size_t old, size_t ntotal);
-int	mc_get_stats(const char *stat_type, int nkey, add_stat_callback add_stats, void *c);
-void	mc_slabs_stats(add_stat_callback add_stats, void *c);
-int	start_slab_thread(void);
-void	stop_slab_thread(void);
-reassign_result_t mc_slabs_reassign(int src, int dst);
-void	mc_slabs_rebalancer_pause(void);
-void	mc_slabs_rebalancer_resume(void);
-
 /* mc_items.c */
 u64	mc_get_cas_id(void);
 item*	mc_do_item_alloc(char *key, size_t nkey, int flags,
@@ -342,9 +302,9 @@ void	mc_do_item_update(item *it);
 int	mc_do_item_replace(item *it, item *new_it, u32 hv);
 int	mc_do_item_cachedump(unsigned int slabs_clsid, unsigned int limit,
 			     struct buffer *buf);
-void	mc_do_item_stats(add_stat_callback add_stats, void *c);
-void	mc_do_item_stats_totals(add_stat_callback add_stats, void *c);
-void	mc_do_item_stats_sizes(add_stat_callback add_stats, void *c);
+void	mc_do_item_stats(add_stat_fn add_stats, void *c);
+void	mc_do_item_stats_totals(add_stat_fn add_stats, void *c);
+void	mc_do_item_stats_sizes(add_stat_fn add_stats, void *c);
 void	mc_do_item_flush_expired(void);
 item*	mc_do_item_get(const char *key, size_t nkey, u32 hv);
 item*	mc_do_item_touch(const char *key, size_t nkey, u32 exptime, u32 hv);
@@ -382,6 +342,20 @@ int safe_strtol(const char *str, s32 *out);
 #define PRINTK(fmt, ...) \
 	printk(KERN_ERR LOG_PREFIX fmt "\n", ##__VA_ARGS__)
 #define PRINFO(fmt, ...)
+#endif
+
+#ifdef CONFIG_VERBOSE
+#define PVERBOSE(level, fmt, ...)		\
+	do {					\
+		if (settings.verbose > level) {	\
+			printk(KERN_ERR		\
+			       LOG_PREFIX	\
+			       fmt,		\
+			       ##__VA_ARGS__);	\
+		}				\
+	} while (0)
+#else
+#define PVERBOSE(level, fmt, ...)
 #endif
 
 #endif /* __MC_H */

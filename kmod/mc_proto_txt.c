@@ -106,11 +106,11 @@ static void txt_stats_detail(conn *c, const char *command)
 		settings.detail_enabled = 0;
 		mc_out_string(c, "OK");
 	} else if (!strcmp(command, "dump")) {
-		struct buffer buf = {
-			.flags	= BUF_NEGATIVE
-		};
-		mc_stats_prefix_dump(&buf);
-		write_and_free(c, &buf, buf.len);
+		int ret;
+		DECLEARE_BUFFER(buf);
+
+		ret = mc_stats_prefix_dump(&buf);
+		write_and_free(c, &buf, ret);
 	} else {
 		mc_out_string(c, "CLIENT_ERROR usage: stats detail on|off|dump");
 	}
@@ -143,10 +143,8 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 	} else if (!strcmp(subcommand, "settings")) {
 		mc_stat_settings(&mc_append_stats, c);
 	} else if (!strcmp(subcommand, "cachedump")) {
-		unsigned int id, limit = 0;
-		struct buffer buf = {
-			.flags	= BUF_NEGATIVE
-		};
+		unsigned int id, limit = 0, ret;
+		DECLEARE_BUFFER(buf);
 
 		if (ntokens < 5) {
 			mc_out_string(c, "CLIENT_ERROR bad command line");
@@ -164,8 +162,8 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 			return;
 		}
 
-		mc_item_cachedump(id, limit, &buf);
-		write_and_free(c, &buf, buf.len);
+		ret =  mc_item_cachedump(id, limit, &buf);
+		write_and_free(c, &buf, ret);
 		return ;
 	} else {
 		/* getting here means that the subcommand is either engine specific or
@@ -811,7 +809,7 @@ static void txt_append_stats(const char *key, u16 klen,
 	u32 nbytes = 0;
 
 	pos = (char *)BUFFER(&c->stats) + c->offset;
-	remaining = c->stats.len - c->offset;
+	remaining = c->stats_len - c->offset;
 	room = remaining - 1;
 
 	if (klen == 0 && vlen == 0) {

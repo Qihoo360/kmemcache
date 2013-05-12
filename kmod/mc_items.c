@@ -403,7 +403,7 @@ int mc_do_item_replace(item *it, item *new_it, u32 hv)
 /**
  * mc_do_item_cachedump() -
  *
- * returns ptr on success, caller must call vfree(ptr)
+ * returns dump size on success, errno otherwise
  */
 int mc_do_item_cachedump(unsigned int slabs_clsid,
 			 unsigned int limit, struct buffer *buf)
@@ -429,7 +429,7 @@ int mc_do_item_cachedump(unsigned int slabs_clsid,
 		ret = -ENOMEM;
 		goto free_key;
 	}
-	ret = alloc_buffer(buf, BUFFER_SIZE);
+	ret = alloc_buffer(buf, BUFFER_SIZE, 0);
 	if (ret) {
 		PRINTK("mc_do_item_cachedump alloc mem error");
 		goto free_temp;
@@ -456,7 +456,7 @@ int mc_do_item_cachedump(unsigned int slabs_clsid,
 	memcpy(dumpstr + bufcurr, "END\r\n", 6);
 	bufcurr += 5;
 
-	buf->len = bufcurr;
+	ret = bufcurr;
 
 free_temp:
 	kfree(temp);
@@ -476,7 +476,7 @@ void mc_item_stats_evictions(u64 *evicted)
 	mutex_unlock(&cache_lock);
 }
 
-void mc_do_item_stats_totals(add_stat_callback add_stats, void *c)
+void mc_do_item_stats_totals(add_stat_fn f, void *c)
 {
 	int i;
 	itemstats_t totals;
@@ -498,7 +498,7 @@ void mc_do_item_stats_totals(add_stat_callback add_stats, void *c)
 		    (unsigned long long)totals.reclaimed);
 }
 
-void mc_do_item_stats(add_stat_callback add_stats, void *c)
+void mc_do_item_stats(add_stat_fn f, void *c)
 {
 	int i;
 
@@ -535,11 +535,11 @@ void mc_do_item_stats(add_stat_callback add_stats, void *c)
 	}
 
 	/* getting here means both ascii and binary terminators fit */
-	add_stats(NULL, 0, NULL, 0, c);
+	f(NULL, 0, NULL, 0, c);
 }
 
 /** dumps out a list of objects of each size, with granularity of 32 bytes */
-void mc_do_item_stats_sizes(add_stat_callback add_stats, void *c)
+void mc_do_item_stats_sizes(add_stat_fn f, void *c)
 {
 	/* max 1MB object, divided into 32 bytes size buckets */
 	const int num_buckets = 32768;
@@ -572,7 +572,7 @@ void mc_do_item_stats_sizes(add_stat_callback add_stats, void *c)
 		}
 		vfree(histogram);
 	}
-	add_stats(NULL, 0, NULL, 0, c);
+	f(NULL, 0, NULL, 0, c);
 }
 
 /** wrapper around hash_find which does the lazy expiration logic */

@@ -50,12 +50,11 @@ int hash_init(int power)
 	if (power)
 		hashpower = power;
 	bytes = hashsize(hashpower) * sizeof(void *);
-	ret = alloc_buffer(&primary_hts, bytes);
+	ret = alloc_buffer(&primary_hts, bytes, __GFP_ZERO);
 	if (ret) {
 		PRINTK("alloc primary_hashtable error");
 		goto out;
 	} else {
-		zero_buffer(&primary_hts);
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 	}
 
@@ -136,11 +135,10 @@ static void mc_hash_expand(void)
 	memcpy(&old_hts, &primary_hts, sizeof(old_hts));
 
 	bytes = hashsize(hashpower + 1) * sizeof(void *);
-	ret = alloc_buffer(&primary_hts, bytes);
+	ret = alloc_buffer(&primary_hts, bytes, __GFP_ZERO);
 	if (!ret) {
 		if (settings.verbose > 1)
 			PRINTK("hash table expansion starting");
-		zero_buffer(&primary_hts);
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 		hashpower++;
 		set_bit(EXPANDING, &hashflags);

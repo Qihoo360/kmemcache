@@ -349,17 +349,17 @@ static void bin_stat(conn *c)
 
 		subcmd_pos = subcommand + 6;
 		if (!strncmp(subcmd_pos, " dump", 5)) {
-			struct buffer buf = {
-				.flags	= BUF_NEGATIVE
-			};
-			mc_stats_prefix_dump(&buf);
-			if (buf.flags == BUF_NEGATIVE) {
+			int ret;
+			DECLEARE_BUFFER(buf);
+
+			ret = mc_stats_prefix_dump(&buf);
+			if (ret < 0) {
 				bin_write_error(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
 				return ;
 			} else {
 				BUFFER_PTR(&buf, dump_buf);
 				mc_append_stats("detailed", strlen("detailed"),
-					        dump_buf, buf.len, c);
+					        dump_buf, ret, c);
 				free_buffer(&buf);
 			}
 		} else if (!strncmp(subcmd_pos, " on", 3)) {

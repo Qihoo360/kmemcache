@@ -1,8 +1,12 @@
 CONFIG_DEBUG=n
+
+# sasl, not implementation
 CONFIG_SASL=n
+
+# connector request cache
 CONFIG_CN_CACHE=n
-CONFIG_PAGES_CACHE=n
-CONFIG_BUFFER_CACHE=n
+
+# stack variable optimization
 CONFIG_STACK_OPT=y
 
 # all listen sockets share a thread 
@@ -11,10 +15,11 @@ CONFIG_SINGLE_DISPATCHER=n
 # out of memory managment
 CONFIG_OOM=y
 
+# verbose log level control
+CONFIG_VERBOSE=y
+
 ifeq ($(CONFIG_DEBUG),y)
   DEBFLAGS = -O -Wall -g -DCONFIG_DEBUG
-else
-  DEBFLAGS = -O2
 endif
 
 EXTRA_CFLAGS += $(DEBFLAGS)
@@ -22,14 +27,6 @@ EXTRA_CFLAGS += -I$(PWD)/../include
 
 ifeq ($(CONFIG_CN_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_CN_CACHE
-endif
-
-ifeq ($(CONFIG_PAGES_CACHE),y)
-  EXTRA_CFLAGS += -DCONFIG_PAGES_CACHE
-endif
-
-ifeq ($(CONFIG_BUFFER_CACHE),y)
-  EXTRA_CFLAGS += -DCONFIG_BUFFER_CACHE
 endif
 
 ifeq ($(CONFIG_STACK_OPT),y)
@@ -42,6 +39,10 @@ endif
 
 ifeq ($(CONFIG_OOM),y)
   EXTRA_CFLAGS += -DCONFIG_OOM
+endif
+
+ifeq ($(CONFIG_VERBOSE),y)
+  EXTRA_CFLAGS += -DCONFIG_VERBOSE
 endif
 
 obj-m	+= kmodhelper.o kmemcache.o

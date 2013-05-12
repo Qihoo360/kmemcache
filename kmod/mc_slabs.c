@@ -31,52 +31,62 @@ typedef struct {
 
 	unsigned int slabs;	/* how many slabs were allocated for this class */
 
-	void **slab_list;	/* array of slab pointers(krealloc) */
+	struct buffer slab_list;/* array of slab pointers */
 	unsigned int list_size;	/* size of prev array */
 
 	unsigned int killing;	/* index+1 of dying slab, or zereo if none */
 	size_t requested;	/* the number of requested bytes */
 } slabclass_t;
 
-static slabclass_t slabclass[MAX_SLAB_CLASSES];
-static size_t mem_limit = 0;
-static size_t mem_malloced = 0;
-static int power_largest;
+static slabclass_t slabclass[MAX_SLAB_CLASSES] __read_mostly;
+static unsigned long mem_limit __read_mostly = 0;
+static unsigned long mem_malloced = 0;
+static int power_largest __read_mostly;
 
 /* for prealloc */
 static void *mem_base __read_mostly = NULL;
 static void *mem_current = NULL;
-static size_t mem_avail = 0;
+static unsigned long mem_avail = 0;
 
 /*
- * Access to the slab allocator is protected by this lock
+ * access to the slab allocator is protected by this lock
  */
 static DEFINE_MUTEX(slabs_lock);
 
-/*
- * Forward Declarations
- */
+#define SLABLIST_AS_B(buf)		\
+({					\
+	struct buffer *b;		\
+ 	BUFFER_PTR(buf, b);		\
+ 	b;				\
+}) 
+#define SLABLIST_AS_V(buf)		\
+({					\
+	void **v;			\
+ 	BUFFER_PTR(buf, v);		\
+ 	v;				\
+}) 
+
 static int mc_do_slabs_newslab(unsigned int id);
 
-static void *mc_memory_allocate(size_t size)
+/**
+ * mc_memory_allocate() - alloc memory, using buffer or from preallocated
+ * @size	: request size
+ * @vptr	: for buffer alloctor
+ *
+ * returns real buffer ptr on success, null otherwise
+ */
+static void* mc_memory_allocate(size_t size, void *vptr)
 {
 	void *ret = NULL;
 
-	if (mem_base == NULL) {
-		/* not use a preallocated large memory chunk */
-#ifdef CONFIG_BUFFER_CACHE
-		ret = kmem_cache_alloc(buffer_cachep, GFP_KERNEL);
-		if (likely(ret)) {
-			if (alloc_buffer(ret, size)) {
-				kmem_cache_free(buffer_cachep, ret);
-				ret = NULL;
-			} else {
-				BUFFER_PTR((struct buffer *)ret, ret);
-			}
-		}
-#else
-		ret = vmalloc(size);
-#endif
+	if (likely(!mem_base)) {
+		struct buffer *buf = vptr;
+
+		if (mem_malloced + size > slabsize)
+			return NULL;
+		if (alloc_buffer(buf, size, __GFP_ZERO))
+			return NULL;
+		BUFFER_PTR(buf, ret);
 	} else {
 		ret = mem_current;
 
@@ -93,6 +103,8 @@ static void *mc_memory_allocate(size_t size)
 			mem_avail -= size;
 		else
 			mem_avail = 0;
+
+		memset(ret, 0, size);
 	}
 	
 	return ret;
@@ -196,16 +208,24 @@ static int mc_grow_slab_list(unsigned int id)
 	slabclass_t *p = &slabclass[id];
 
 	if (p->slabs == p->list_size) {
-		size_t new_size = (p->list_size != 0) ? p->list_size * 2 : 16;
-		void *new_list = krealloc(p->slab_list, new_size * sizeof(void *),
-					  GFP_KERNEL);
-		if (!new_list) {
+		size_t new_size;
+		size_t item_size;
+		int ret;
+
+		if (likely(!mem_base))
+			item_size = sizeof(struct buffer);
+		else
+			item_size = sizeof(void *);
+		new_size = (p->list_size != 0) ? p->list_size * 2 : 16;
+		ret = realloc_buffer(&p->slab_list,
+				     new_size * item_size,
+				     p->list_size * item_size,
+				     0);
+		if (ret) {
 			PRINTK("grow slab list error");
 			return -ENOMEM;
 		}
 		p->list_size = new_size;
-		p->slab_list = new_list;
-
 	}
 	return 0;
 }
@@ -223,16 +243,29 @@ static int mc_do_slabs_newslab(unsigned int id)
 		: p->size * p->perslab;
 	char *ptr;
 
-	if ((mem_limit && (mem_malloced + len > mem_limit) && p->slabs > 0) ||
-	    (mc_grow_slab_list(id)) ||
-	    ((ptr = mc_memory_allocate((size_t)len)) == NULL)) {
+	if (mem_limit && (mem_malloced + len > mem_limit) && p->slabs > 0)
 		return -ENOMEM;
+	if (mc_grow_slab_list(id))
+		return -ENOMEM;
+	if (likely(!mem_base)) {
+		struct buffer *lptr;
+		BUFFER_PTR(&p->slab_list, lptr);
+		ptr = mc_memory_allocate((size_t)len, &lptr[p->slabs]);
+	} else {
+		ptr = mc_memory_allocate((size_t)len, 0);
 	}
+	if (!ptr)
+		return -ENOMEM;
 
-	memset(ptr, 0, (size_t)len);
 	mc_split_slab_page_into_freelist(ptr, id);
 
-	p->slab_list[p->slabs++] = ptr;
+	if (likely(!mem_base)) {
+		p->slabs++;
+	} else {
+		void **lptr;
+		BUFFER_PTR(&p->slab_list, lptr);
+		lptr[p->slabs++] = ptr;
+	}
 	mem_malloced += len;
 
 	return 0;
@@ -278,7 +311,7 @@ out:
 	return ret;
 }
 
-static int nz_strcmp(int nzlen, const char *nz, const char *z)
+static inline int nz_strcmp(int nzlen, const char *nz, const char *z)
 {
 	int zlen = strlen(z);
 
@@ -289,16 +322,16 @@ static int nz_strcmp(int nzlen, const char *nz, const char *z)
  * mc_get_stats() - get a datum for stats in binary protocol
  * @stat_type	:
  * @nkey	:
- * @add_stats	:
+ * @f		:
  * @c		:
  *
  * Return 0 on success, otherwise errno.
  */
-int mc_get_stats(const char *stat_type, int nkey, add_stat_callback add_stats, void *c)
+int mc_get_stats(const char *stat_type, int nkey, add_stat_fn f, void *c)
 {
 	int ret = 0;
 
-	if (add_stats != NULL) {
+	if (f) {
 		if (!stat_type) {
 			/* prepare general statistics for the engine */
 			u32 curr_items;
@@ -315,13 +348,13 @@ int mc_get_stats(const char *stat_type, int nkey, add_stat_callback add_stats, v
 			APPEND_STAT("curr_items", "%u", curr_items);
 			APPEND_STAT("total_items", "%u", total_items);
 
-			mc_item_stats_totals(add_stats, c);
+			mc_item_stats_totals(f, c);
 		} else if (nz_strcmp(nkey, stat_type, "items") == 0) {
-			mc_item_stats(add_stats, c);
+			mc_item_stats(f, c);
 		} else if (nz_strcmp(nkey, stat_type, "slabs") == 0) {
-			mc_slabs_stats(add_stats, c);
+			mc_slabs_stats(f, c);
 		} else if (nz_strcmp(nkey, stat_type, "sizes") == 0) {
-			mc_item_stats_sizes(add_stats, c);
+			mc_item_stats_sizes(f, c);
 		} else {
 			ret = -EFAULT;
 		}
@@ -332,7 +365,7 @@ int mc_get_stats(const char *stat_type, int nkey, add_stat_callback add_stats, v
 	return ret;
 }
 
-static void mc_do_slabs_stats(add_stat_callback add_stats, void *c)
+static void mc_do_slabs_stats(add_stat_fn f, void *c)
 {
 	int i, total;
 	struct thread_stats *thread_stats;
@@ -391,7 +424,7 @@ static void mc_do_slabs_stats(add_stat_callback add_stats, void *c)
 
 	APPEND_STAT("active_slabs", "%d", total);
 	APPEND_STAT("total_malloced", "%llu", (unsigned long long)mem_malloced);
-	add_stats(NULL, 0, NULL, 0, c);
+	f(NULL, 0, NULL, 0, c);
 
 	kfree(thread_stats);
 }
@@ -411,7 +444,8 @@ unsigned int mc_slabs_clsid(size_t size)
 	if (size == 0)
 		return 0;
 	while (size > slabclass[res].size) {
-		if (res++ == power_largest) /* won't fit in the biggest slab */
+		/* won't fit in the biggest slab */
+		if (res++ == power_largest)
 			return 0;
 	}
 	return res;
@@ -428,17 +462,23 @@ unsigned int mc_slabs_clsid(size_t size)
  *
  * Returns zero on success, errno otherwise.
  */
-int slabs_init(size_t limit, int factor_nume, int factor_deno, int prealloc)
+int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 {
 	int ret = 0;
 	int i = POWER_SMALLEST - 1;
 	unsigned int size = sizeof(item) + settings.chunk_size;
 
-	mem_limit = limit;
+	/* total bytes that slabs could use */
+	slabsize = (slabsize * totalram_pages * PAGE_SIZE) / 100;
+	if (limit > slabsize) {
+		PRINTK("slabs memory limit from %zu to %lu bytes", limit, slabsize);
+		limit = slabsize;
+	}
+	mem_limit = min((unsigned long)limit, slabsize);
 
 	if (prealloc) {
 		mem_base = vmalloc(mem_limit);
-		if (mem_base == NULL) {
+		if (!mem_base) {
 			PRINTK("failed to allocate requested memory in "
 			       "one large chunk. Will allocate in smaller chunks.");
 		} else {
@@ -452,22 +492,22 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, int prealloc)
 		if (size % CHUNK_ALIGN_BYTES)
 			size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES);
 
+		init_buffer(&slabclass[i].slab_list);
 		slabclass[i].size = size;
 		slabclass[i].perslab = settings.item_size_max / slabclass[i].size;
 		size = size * factor_nume / factor_deno;
-		if (settings.verbose > 1) {
-			PRINTK("slab class %3d: chunk size %9u perslab %7u",
-			       i, slabclass[i].size, slabclass[i].perslab);
-		}
+
+		PVERBOSE(1, "slab class %3d: chunk size %9u perslab %7u\n",
+			 i, slabclass[i].size, slabclass[i].perslab);
 	}
 
 	power_largest = i;
+	init_buffer(&slabclass[power_largest].slab_list);
 	slabclass[power_largest].size = settings.item_size_max;
 	slabclass[power_largest].perslab = 1;
-	if (settings.verbose > 1) {
-		PRINTK("slab class %3d: chunk size %9u perslab %7u",
-		       i, slabclass[i].size, slabclass[i].perslab);
-	}
+
+	PVERBOSE(1, "slab class %3d: chunk size %9u perslab %7u\n",
+		 i, slabclass[i].size, slabclass[i].perslab);
 
 	if (prealloc) {
 		ret = mc_slabs_preallocate(power_largest);
@@ -486,21 +526,22 @@ void slabs_exit(void)
 	} else {
 		for (i = POWER_SMALLEST; i <= power_largest; i++) {
 			int j;
-			p = &slabclass[i];
+			struct buffer *lptr;
 
-			if (p->slabs == 0)
+			p = &slabclass[i];
+			if (!p->slabs)
 				continue;
+
+			BUFFER_PTR(&p->slab_list, lptr);
 			for (j = 0; j < p->slabs; j++) {
-				vfree(p->slab_list[j]);
+				free_buffer(&lptr[j]);
 			}
 		}
 	}
 
 	for (i = POWER_SMALLEST; i <= power_largest; i++) {
 		p = &slabclass[i];
-		if (p->slab_list) {
-			kfree(p->slab_list);
-		}
+		free_buffer(&p->slab_list);
 	}
 }
 
@@ -532,10 +573,10 @@ void mc_slabs_free(void *ptr, size_t size, unsigned int id)
 /**
  * Fill buffer with stats
  */
-void mc_slabs_stats(add_stat_callback add_stats, void *c)
+void mc_slabs_stats(add_stat_fn f, void *c)
 {
 	mutex_lock(&slabs_lock);
-	mc_do_slabs_stats(add_stats, c);
+	mc_do_slabs_stats(f, c);
 	mutex_unlock(&slabs_lock);
 }
 
@@ -596,8 +637,13 @@ static int mc_slab_rebalance_start(void)
 
 	s_cls->killing = 1;
 
-	slab_rebal.slab_start	=
-		s_cls->slab_list[s_cls->killing - 1];
+	if (likely(!mem_base)) {
+		slab_rebal.slab_start =
+			BUFFER(&SLABLIST_AS_B(&s_cls->slab_list)[s_cls->killing - 1]);
+	} else {
+		slab_rebal.slab_start =
+			SLABLIST_AS_V(&s_cls->slab_list)[s_cls->killing - 1];
+	}
 	slab_rebal.slab_end	=
 		(char *)slab_rebal.slab_start
 		+ (s_cls->size * s_cls->perslab);
@@ -762,15 +808,28 @@ static void mc_slab_rebalance_finish(void)
 	d_cls = &slabclass[slab_rebal.d_clsid];
 
 	/* At this point the stolen slab is completely clear */
-	s_cls->slab_list[s_cls->killing - 1] = 
-		s_cls->slab_list[s_cls->slabs - 1];
+	if (likely(!mem_base)) {
+		/* src ---> dst */
+		memcpy(&SLABLIST_AS_B(&d_cls->slab_list)[d_cls->slabs++],
+		       &SLABLIST_AS_B(&s_cls->slab_list)[s_cls->killing - 1],
+		       sizeof(struct buffer));
+		/* src ---> new src */
+		memcpy(&SLABLIST_AS_B(&s_cls->slab_list)[s_cls->killing - 1],
+		       &SLABLIST_AS_B(&s_cls->slab_list)[s_cls->slabs - 1],
+		       sizeof(struct buffer));
+	} else {
+		/* src ---> dst */
+		SLABLIST_AS_V(&d_cls->slab_list)[d_cls->slabs++] =
+			SLABLIST_AS_V(&s_cls->slab_list)[s_cls->killing - 1];
+		/* src ---> new src */
+		SLABLIST_AS_V(&s_cls->slab_list)[s_cls->killing - 1] =
+			SLABLIST_AS_V(&s_cls->slab_list)[s_cls->slabs - 1];
+	}
 	s_cls->slabs--;
 	s_cls->killing = 0;
 
 	memset(slab_rebal.slab_start, 0,
 	       (size_t)settings.item_size_max);
-
-	d_cls->slab_list[d_cls->slabs++] = slab_rebal.slab_start;
 	mc_split_slab_page_into_freelist(slab_rebal.slab_start,
 					 slab_rebal.d_clsid);
 
@@ -791,9 +850,7 @@ static void mc_slab_rebalance_finish(void)
 	stats.slabs_moved++;
 	spin_unlock(&stats_lock);
 
-	if (settings.verbose > 1) {
-		PRINTK("finished a slab move");
-	}
+	PVERBOSE(1, "finished a slab move");
 }
 
 /**
@@ -891,6 +948,12 @@ out:
 	return res;
 }
 
+void mc_wakeup_slabs_mten(void)
+{
+	if (slab_mten.tsk)
+		wake_up_interruptible(&slab_mten.wq);
+}
+
 /**
  * Slab rebalancer thread.
  * Does not use spinlocks since it is not timing sensiteve. Burn less CPU and
@@ -905,9 +968,8 @@ static int mc_slab_maintenance(void *ignore)
 		wait_event_freezable(slab_mten.wq,
 				     settings.slab_automove == 1 ||
 				     kthread_should_stop());
-		if (test_bit(SLAB_KTHREAD_ZOMBIE, &slab_mten.flag)) {
-			goto out;
-		}
+		if (kthread_should_stop())
+			break;
 		if (mc_slab_automove_decision(&src, &dest) == 1) {
 			/* 
 			 * Blind to the return codes. It will
@@ -918,7 +980,6 @@ static int mc_slab_maintenance(void *ignore)
 		msleep(1000);
 	}
 
-out:
 	return 0;
 }
 
@@ -936,11 +997,9 @@ static int mc_slab_rebalance(void *ignore)
 				     slab_rebal.signal ||
 				     kthread_should_stop());
 
+		if (kthread_should_stop())
+			break;
 		mutex_lock(&slab_rebal.lock);
-		if (test_bit(SLAB_KTHREAD_ZOMBIE, &slab_rebal.flag)) {
-			mutex_unlock(&slab_rebal.lock);
-			goto out;
-		}
 		if (slab_rebal.signal == 1) {
 			if (mc_slab_rebalance_start() < 0) {
 				/* Handle errors with more specifity as required. */
@@ -964,7 +1023,6 @@ static int mc_slab_rebalance(void *ignore)
 		mutex_unlock(&slab_rebal.lock);
 	}
 
-out:
 	return 0;
 }
 
@@ -990,7 +1048,7 @@ static int mc_slabs_reassign_pick_any(int dst)
 	return -1;
 }
 
-static reassign_result_t mc_do_slabs_reassign(int src, int dst)
+static int mc_do_slabs_reassign(int src, int dst)
 {
 	if (slab_rebal.signal != 0)
 		return REASSIGN_RUNNING;
@@ -1021,9 +1079,9 @@ static reassign_result_t mc_do_slabs_reassign(int src, int dst)
 	return REASSIGN_OK;
 }
 
-reassign_result_t mc_slabs_reassign(int src, int dst)
+int mc_slabs_reassign(int src, int dst)
 {
-	reassign_result_t ret;
+	int ret;
 
 	if (!mutex_trylock(&slab_rebal.lock)) {
 		return REASSIGN_RUNNING;
@@ -1050,9 +1108,12 @@ int start_slab_thread(void)
 {
 	int ret = 0;
 
+	if (!settings.slab_reassign)
+		goto out;
+	
 	init_waitqueue_head(&slab_mten.wq);
 	slab_mten.tsk = kthread_run(mc_slab_maintenance,
-				    NULL, "mc_slab_mten");
+				    NULL, "kmcslabm");
 	if (IS_ERR(slab_mten.tsk)) {
 		PRINTK("create slab maintenance thread error");
 		ret = -ENOMEM;
@@ -1062,7 +1123,7 @@ int start_slab_thread(void)
 	mutex_init(&slab_rebal.lock);
 	init_waitqueue_head(&slab_rebal.wq);
 	slab_rebal.tsk = kthread_run(mc_slab_rebalance,
-				     NULL, "mc_slab_rebal");
+				     NULL, "kmcslabr");
 	if (IS_ERR(slab_rebal.tsk)) {
 		PRINTK("create slab rebalance thread error");
 		ret = -ENOMEM;
@@ -1072,7 +1133,6 @@ int start_slab_thread(void)
 	return 0;
 
 out_rebl_err:
-	set_bit(SLAB_KTHREAD_ZOMBIE, &slab_mten.flag);
 	kthread_stop(slab_mten.tsk);
 out:
 	return ret;
@@ -1080,9 +1140,8 @@ out:
 
 void stop_slab_thread(void)
 {
-	set_bit(SLAB_KTHREAD_ZOMBIE, &slab_mten.flag);
-	set_bit(SLAB_KTHREAD_ZOMBIE, &slab_rebal.flag);
-
+	if (!settings.slab_reassign)
+		return;
 	kthread_stop(slab_mten.tsk);
 	kthread_stop(slab_rebal.tsk);
 }

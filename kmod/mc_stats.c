@@ -150,8 +150,9 @@ void mc_stats_prefix_record_set(const char *key, size_t nkey)
 }
 
 /**
- * returns stats in textual form suitable for writing to client.
+ * stats in textual form suitable for writing to client.
  *
+ * returns dump size on success, errno otherwise
  */
 int mc_stats_prefix_dump(struct buffer *buf)
 {
@@ -172,7 +173,7 @@ int mc_stats_prefix_dump(struct buffer *buf)
 	       num_prefixes * (strlen(format) - 2 /* %s */
 	       + 4 * (20 - 4)) /* %llu replaced by 20-digit num */
 	       + sizeof("END\r\n");
-	res = alloc_buffer(buf, size);
+	res = alloc_buffer(buf, size, 0);
 	if (res) {
 		mutex_unlock(&prefix_stats_lock);
 		PRINTK("can't allocate stats response");
@@ -195,7 +196,7 @@ int mc_stats_prefix_dump(struct buffer *buf)
 	mutex_unlock(&prefix_stats_lock);
 	memcpy(dumpstr + pos, "END\r\n", 6);
 
-	buf->len = pos + 5;
+	res = pos + 5;
 out:
 	return res;
 }

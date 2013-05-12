@@ -367,27 +367,27 @@ int mc_item_cachedump(unsigned int slabs_clsid, unsigned int limit,
 /**
  * Dump statistics about slab classes
  */
-void mc_item_stats(add_stat_callback add_stat, void *c)
+void mc_item_stats(add_stat_fn f, void *c)
 {
 	mutex_lock(&cache_lock);
-	mc_do_item_stats(add_stat, c);
+	mc_do_item_stats(f, c);
 	mutex_unlock(&cache_lock);
 }
 
-void mc_item_stats_totals(add_stat_callback add_stat, void *c)
+void mc_item_stats_totals(add_stat_fn f, void *c)
 {
 	mutex_lock(&cache_lock);
-	mc_do_item_stats_totals(add_stat, c);
+	mc_do_item_stats_totals(f, c);
 	mutex_unlock(&cache_lock);
 }
 
 /**
  * Dump a list of objects of each size in 32-byte increments
  */
-void mc_item_stats_sizes(add_stat_callback add_stat, void *c)
+void mc_item_stats_sizes(add_stat_fn f, void *c)
 {
 	mutex_lock(&cache_lock);
-	mc_do_item_stats_sizes(add_stat, c);
+	mc_do_item_stats_sizes(f, c);
 	mutex_unlock(&cache_lock);
 }
 

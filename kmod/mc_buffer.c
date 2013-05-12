@@ -5,208 +5,6 @@
 
 #include "mc.h"
 
-#ifdef CONFIG_BUFFER_CACHE
-struct kmem_cache *buffer_cachep;
-#endif
-
-#ifdef CONFIG_PAGES_CACHE
-
-#define MAX_RETRY	2
-
-static unsigned long totalpages;
-static LIST_HEAD(pages_cache);
-static DEFINE_SPINLOCK(pages_cache_lock);
-
-static inline int free_max_order(void)
-{
-	struct pages *pages, *max = NULL;
-
-	spin_lock_bh(&pages_cache_lock);
-	list_for_each_entry(pages, &pages_cache, list) {
-		if (!max) {
-			max = pages;
-		} else if (pages->order > max->order) {
-			max = pages;
-		}
-	}
-	if (max) {
-		list_del(&max->list);
-		totalpages -= (1 << max->order);
-		spin_unlock_bh(&pages_cache_lock);
-		goto free_pages;
-	}
-	spin_unlock_bh(&pages_cache_lock);
-
-	return -EFAULT;
-
-free_pages:
-	__free_pages(max->page, max->order);
-	kfree(max);
-	return 0;
-}
-
-static inline int free_next_order(unsigned int order)
-{
-	struct pages *pages, *nxt = NULL;
-
-	spin_lock_bh(&pages_cache_lock);
-retry_nxt:
-	list_for_each_entry(pages, &pages_cache, list) {
-		if (pages->order == order + 1) {
-			nxt = pages;
-			break;
-		}
-	}
-	if (!nxt && !list_empty(&pages_cache)) {
-		order++;
-		goto retry_nxt;
-	}
-	if (nxt) {
-		list_del(&nxt->list);
-		totalpages -= (1 << nxt->order);
-		spin_unlock_bh(&pages_cache_lock);
-		goto free_pages;
-	}
-	spin_unlock_bh(&pages_cache_lock);
-
-	return -EFAULT;
-
-free_pages:
-	__free_pages(nxt->page, nxt->order);
-	kfree(nxt);
-	return 0;
-}
-
-static int _alloc_buffer(struct buffer *buf, size_t len)
-{
-	int order, ret = 0, retry = 0;
-	struct pages *pages, *n;
-
-	order = get_order(len);
-	if ((1 << order) * PAGE_SIZE < len)
-		order += 1;
-
-	spin_lock_bh(&pages_cache_lock);
-	list_for_each_entry_safe(pages, n, &pages_cache, list) {
-		if (pages->order == order) {
-			list_del(&pages->list);
-			totalpages -= (1 << pages->order);
-			break;
-		}
-	}
-	spin_unlock_bh(&pages_cache_lock);
-
-	if (&pages->list == &pages_cache) {
-retry_kmalloc:
-		pages = (struct pages *)kmalloc(sizeof(*pages), GFP_KERNEL);
-		if (!pages) {
-			if (retry > MAX_RETRY) {
-				ret = -ENOMEM;
-				goto out;
-			}
-			if (!free_max_order()) {
-				retry++;
-				goto retry_kmalloc;
-			} else {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-
-retry_page:
-		pages->page = alloc_pages(GFP_PAGES, order);
-		if (!pages->page) {
-			if (retry > MAX_RETRY) {
-				kfree(pages);
-				ret = -ENOMEM;
-				goto out;
-			}
-			if (!free_next_order(order)) {
-				retry++;
-				goto retry_page;
-			} else {
-				kfree(pages);
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-		pages->order = order;
-	}
-
-	pages->buf = kmap(pages->page);
-	buf->_pages = pages;
-	buf->room  = (1 << (order + PAGE_SHIFT));
-
-out:
-	return ret;
-}
-
-static void _free_buffer(struct buffer *buf)
-{
-	unsigned int add;
-	struct pages *pages = buf->_pages;
-
-	add = (1 << pages->order);
-	kunmap(pages->page);
-
-	spin_lock_bh(&pages_cache_lock);
-	if (totalpages + add < totalram_pages / 4) {
-		list_add(&pages->list, &pages_cache);
-		totalpages += add;
-	} else {
-		spin_unlock_bh(&pages_cache_lock);
-		goto free_pages;
-	}
-	spin_unlock_bh(&pages_cache_lock);
-
-	return;
-
-free_pages:
-	__free_pages(pages->page, pages->order);
-	kfree(pages);
-}
-
-void pages_cache_exit(void)
-{
-	struct pages *pages, *n;
-
-	spin_lock_bh(&pages_cache_lock);
-	list_for_each_entry_safe(pages, n, &pages_cache, list) {
-		__free_pages(pages->page, pages->order);
-		list_del(&pages->list);
-		kfree(pages);
-	}
-	spin_unlock_bh(&pages_cache_lock);
-}
-
-#else
-static inline int _alloc_buffer(struct buffer *buf, size_t len)
-{
-	int ret = 0;
-
-	buf->buf_order = get_order(len);
-	if ((1 << buf->buf_order) * PAGE_SIZE < len)
-		buf->buf_order++;
-
-	buf->buf_page = alloc_pages(GFP_PAGES, buf->buf_order);
-	if (!buf->buf_page) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	buf->room = (1 << (buf->buf_order + PAGE_SHIFT));
-	buf->buf_addr = kmap(buf->buf_page);
-
-out:
-	return ret;
-}
-
-static inline void _free_buffer(struct buffer *buf)
-{
-	kunmap(buf->buf_page);
-	__free_pages(buf->buf_page, buf->buf_order);
-}
-#endif
-
 #define alloc_policy(len)		\
 ({					\
  	unsigned int flags = 0;		\
@@ -219,37 +17,69 @@ static inline void _free_buffer(struct buffer *buf)
  	flags;				\
 })
 
-int alloc_buffer(struct buffer *buf, size_t len)
+static inline int _alloc_buffer(struct buffer *buf, size_t len, gfp_t mask)
 {
 	int ret = 0;
-	unsigned int flags;
+	unsigned int order;
 
-	flags = alloc_policy(len);
+	order = get_order(len);
+	if (unlikely(order >= MAX_ORDER)) {
+		ret = -EFBIG;
+		goto out;
+	}
+
+#ifdef CONFIG_X86_32
+	buf->_page = alloc_pages(mask | GFP_PAGES, order);
+	if (!buf->_page) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	buf->buf = kmap(buf->_page);
+#else
+	buf->buf = (void *)__get_free_pages(mask | GFP_PAGES, order);
+	if (!buf->buf) {
+		ret = -ENOMEM;
+		goto out;
+	}
+#endif
+	buf->room = (_AC(1,UL) << (order + PAGE_SHIFT));
+
+out:
+	return ret;
+}
+
+int alloc_buffer(struct buffer *buf, size_t len, gfp_t mask)
+{
+	int ret = 0;
+	unsigned int which;
+
+	which = alloc_policy(len);
 xchg:
-	switch (flags) {
+	switch (which) {
 	case BUF_KMALLOC:
-		buf->buf = kmalloc(len, GFP_KERNEL);
+		buf->buf = kmalloc(len, mask | GFP_KERNEL);
 		if (!buf->buf) {
-			PRINTK("kmalloc: alloc buffer error");
+			PRINFO("kmalloc - alloc buffer error");
 			ret = -ENOMEM;
 			goto out;
 		}
 		buf->room = ksize(buf->buf);
 		break;
 	case BUF_VMALLOC:
-		buf->buf = vmalloc(len);
+		buf->buf = __vmalloc(len, mask | GFP_PAGES, PAGE_KERNEL);
 		if (!buf->buf) {
-			PRINTK("vmalloc: alloc buffer error");
+			PRINFO("vmalloc - alloc buffer error");
 			ret = -ENOMEM;
 			goto out;
 		}
+		buf->room = len;
 		break;
 	case BUF_PAGES:
-		ret = _alloc_buffer(buf, len);
+		ret = _alloc_buffer(buf, len, mask);
 		if (ret) {
-			PRINTK("alloc_pages: alloc buffer error");
+			PRINFO("alloc_pages - alloc buffer error");
 			ret = 0;
-			flags = BUF_VMALLOC;
+			which = BUF_VMALLOC;
 			goto xchg;
 		}
 		break;
@@ -259,8 +89,7 @@ xchg:
 	}
 
 	if (ret == 0) {
-		buf->flags = flags;
-		buf->len = len;
+		buf->flags = which;
 	}
 out:
 	return ret;
@@ -270,19 +99,7 @@ static inline void _memcpy(void *dst, struct buffer *buf, size_t valid)
 {
 	void *src;
 
-	switch (buf->flags) {
-	case BUF_KMALLOC:
-	case BUF_VMALLOC:
-		src = buf->buf;
-		break;
-	case BUF_PAGES:
-		src = buf->buf_addr;
-		break;
-	default:
-		BUG();
-		break;
-	}
-
+	src = buf->buf;
 	memcpy(dst, src, valid);
 }
 
@@ -290,29 +107,16 @@ static inline void _memmove(struct buffer *dst, struct buffer *src, size_t valid
 {
 	void *_dst;
 
-	switch (dst->flags) {
-	case BUF_KMALLOC:
-	case BUF_VMALLOC:
-		_dst = dst->buf;
-		break;
-	case BUF_PAGES:
-		_dst = dst->buf_addr;
-		break;
-	default:
-		BUG();
-		break;
-	}
-
-	return _memcpy(_dst, src, valid);
+	_dst = dst->buf;
+	_memcpy(_dst, src, valid);
 }
 
-static inline int _realloc_buffer(struct buffer *buf, size_t len, size_t valid)
+static inline int _realloc_buffer(struct buffer *buf, size_t len, size_t valid, gfp_t mask)
 {
 	struct buffer new_buf;
 
-	if (alloc_buffer(&new_buf, len)) {
+	if (alloc_buffer(&new_buf, len, mask))
 		return -ENOMEM;
-	}
 
 	_memmove(&new_buf, buf, valid);
 	free_buffer(buf);
@@ -321,68 +125,56 @@ static inline int _realloc_buffer(struct buffer *buf, size_t len, size_t valid)
 	return 0;
 }
 
-static inline int _realloc_buffer_more(struct buffer *buf, size_t more, size_t valid)
+static inline int _realloc_buffer_more(struct buffer *buf, size_t more, size_t valid, gfp_t mask)
 {
-	if (buf->flags == BUF_PAGES &&
-	    buf->room >= more) {
+	return _realloc_buffer(buf, more, valid, mask);
+}
+
+static inline int _realloc_buffer_less(struct buffer *buf, size_t less, size_t valid, gfp_t mask)
+{
+	if (buf->flags == BUF_KMALLOC)
 		return 0;
-	}
-	if (buf->flags == BUF_KMALLOC &&
-	    buf->room >= more) {
-		return 0;
+
+	if (buf->flags == BUF_PAGES && alloc_policy(less) == BUF_PAGES) {
+		unsigned int neworder, oldorder; 
+		neworder = get_order(less);
+		oldorder = get_order(buf->room);
+		if (neworder == oldorder)
+			return 0;
 	}
 
-	return _realloc_buffer(buf, more, valid);
+	return _realloc_buffer(buf, less, valid, mask);
 }
 
-static inline int _realloc_buffer_less(struct buffer *buf, size_t less, size_t valid)
+int realloc_buffer(struct buffer *buf, size_t len, size_t valid, gfp_t mask)
 {
-	if (valid > less) {
-		PRINTK("_realloc_buffer_less error");
-		return -EINVAL;
+	BUG_ON(buf->flags >= BUF_FLAGS_MAX);
+	if (buf->flags == BUF_NEGATIVE)
+		return alloc_buffer(buf, len, mask);
+	if (len > buf->room) {
+		return _realloc_buffer_more(buf, len, valid, mask);
 	}
-
-	return _realloc_buffer(buf, less, valid);
+	if (len < buf->room) {
+		return _realloc_buffer_less(buf, len, valid, mask);
+	}
+	return 0;
 }
 
-int realloc_buffer(struct buffer *buf, size_t len, size_t valid)
+static inline void __free_buffer(struct buffer *buf)
 {
-	if (!len || valid > buf->len) {
-		BUG();
-		return -EINVAL;
-	}
+	unsigned int order;
 
-	if (len > buf->len) {
-		return _realloc_buffer_more(buf, len, valid);
-	}
-	else if (len < buf->len) {
-		return _realloc_buffer_less(buf, len, valid);
-	} else {
-		return 0;
-	}
+	order = get_order(buf->room);
+
+#ifdef CONFIG_X86_32
+	kunmap(buf->_page);
+	__free_pages(buf->_page, order);
+#else
+	free_pages((unsigned long)buf->buf, order);
+#endif
 }
 
-void zero_buffer(struct buffer *buf)
-{
-	BUG_ON(!buf);
-
-	switch (buf->flags) {
-	case BUF_KMALLOC:
-		memset(buf->buf, 0, buf->room);
-		break;
-	case BUF_VMALLOC:
-		memset(buf->buf, 0, buf->len);
-		break;
-	case BUF_PAGES:
-		memset(buf->buf_addr, 0, buf->room);
-		break;
-	case BUF_NEGATIVE:
-	default:
-		break;
-	}
-}
-
-void free_buffer(struct buffer *buf)
+static inline void _free_buffer(struct buffer *buf)
 {
 	switch (buf->flags) {
 	case BUF_KMALLOC:
@@ -392,11 +184,23 @@ void free_buffer(struct buffer *buf)
 		vfree(buf->buf);
 		break;
 	case BUF_PAGES:
-		_free_buffer(buf);
+		__free_buffer(buf);
 		break;
 	case BUF_NEGATIVE:
+		break;
 	default:
+		BUG();
 		break;
 	}
 }
 
+void free_buffer(struct buffer *buf)
+{
+	_free_buffer(buf);
+}
+
+void free_buffer_init(struct buffer *buf)
+{
+	_free_buffer(buf);
+	init_buffer(buf);
+}
