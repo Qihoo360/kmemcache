@@ -197,7 +197,7 @@ static void* __send_msg_sync(struct cn_msg *msg, unsigned long timeout)
 		return NULL;
 
 	if (!netlink_has_listeners(cn.sock, NETLINK_MEMCACHE_GRP)) {
-		PRINTK("netlink hasn't got a listener");
+		PRINTK("netlink hasn't got a listener\n");
 		ret = -ESRCH;
 		goto out;
 	}
@@ -205,7 +205,7 @@ static void* __send_msg_sync(struct cn_msg *msg, unsigned long timeout)
 	size = NLMSG_SPACE(sizeof(*msg) + msg->len);
 	skb = alloc_skb(size, GFP_KERNEL);
 	if (!skb) {
-		PRINTK("alloc skb error");
+		PRINTK("alloc skb error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -220,13 +220,13 @@ static void* __send_msg_sync(struct cn_msg *msg, unsigned long timeout)
 	if ((ret = netlink_broadcast(cn.sock, skb, 0,
 				     NETLINK_MEMCACHE_GRP,
 				     GFP_KERNEL))) {
-		PRINTK("netlink broadcast error");
+		PRINTK("netlink broadcast error\n");
 		goto out;
 	}
 
 	ret = wait_for_completion_timeout(&entry->comp, timeout);
 	if (!ret) {
-		PRINTK("__send_msg_sync timeout");
+		PRINTK("__send_msg_sync timeout\n");
 		ret = -EFAULT;
 		goto out;
 	}
@@ -282,7 +282,7 @@ static void mc_nl_callback(struct sk_buff *_skb)
 					&entry->work)) {
 				spin_unlock_bh(&queue->lock);
 				entry->callback.skb = NULL;
-				PRINTK("may be dead lock, check callback");
+				PRINTK("may be dead lock, check callback\n");
 				goto free_skb;
 			}
 			break;
@@ -309,7 +309,7 @@ int connector_init(void)
 				      SLAB_HWCACHE_ALIGN,
 				      NULL);
 	if (!cn_cachep) {
-		PRINTK("create connector cache error");
+		PRINTK("create connector cache error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -322,20 +322,20 @@ int connector_init(void)
 				        NULL,
 				        THIS_MODULE);
 	if (!cn.sock) {
-		PRINTK("create netlink error");
+		PRINTK("create netlink error\n");
 		ret = -EIO;
 		goto free_cache;
 	}
 
 	cn.queue = kzalloc(sizeof(struct cn_queue), GFP_KERNEL);
 	if (!cn.queue) {
-		PRINTK("alloc connetctor queue error");
+		PRINTK("alloc connetctor queue error\n");
 		ret = -ENOMEM;
 		goto free_netlink;
 	}
 	cn.queue->workqueue = create_singlethread_workqueue("kmccn");
 	if (!cn.queue->workqueue) {
-		PRINTK("create connetctor queue error");
+		PRINTK("create connetctor queue error\n");
 		ret = -ENOMEM;
 		goto free_queue;
 	}

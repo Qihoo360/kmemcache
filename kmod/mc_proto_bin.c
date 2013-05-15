@@ -30,6 +30,7 @@ static void bin_add_header(conn *c, u16 err, u8 hdr_len,
 	header->response.opaque = c->opaque;
 	header->response.cas	= htonll(c->cas);
 
+#ifdef CONFIG_VERBOSE
 	if (settings.verbose > 1) {
 		int i;
 		PRINTK(">%s Writing bin response:", current->comm);
@@ -39,7 +40,9 @@ static void bin_add_header(conn *c, u16 err, u8 hdr_len,
 		    }
 		    PRINTK(" 0x%02x", header->bytes[i]);
 		}
+		PRINTK("\n");
 	}
+#endif
 
 	mc_add_iov(c, c->cn_wbuf, sizeof(header->response));
 }
@@ -79,12 +82,10 @@ static void bin_write_error(conn *c, protocol_binary_response_status err, int sw
 		break;
 	default:
 		errstr = "UNHANDLED ERROR";
-		PRINTK(">%s UNHANDLED ERROR: %d", current->comm, err);
+		PRINTK(">%s UNHANDLED ERROR: %d\n", current->comm, err);
 	}
 
-	if (settings.verbose > 1) {
-		PRINTK(">%s Writing an error: %s", current->comm, errstr);
-	}
+	PVERBOSE(1, ">%s Writing an error: %s\n", current->comm, errstr);
 
 	len = strlen(errstr);
 	bin_add_header(c, err, 0, 0, len);
@@ -157,6 +158,7 @@ static void bin_touch(conn *c)
 	t   = bin_get_request(c);
 	exptime = ntohl(t->message.body.expiration);
 
+#ifdef CONFIG_VERBOSE
 	if (settings.verbose > 1) {
 		int i;
 		/* May be GAT/GATQ/etc */
@@ -164,7 +166,9 @@ static void bin_touch(conn *c)
 		for (i = 0; i < nkey; ++i) {
 			PRINTK("%c", key[i]);
 		}
+		PRINTK("\n");
 	}
+#endif
 
 	it = mc_item_touch(c->who, key, nkey, realtime(exptime));
 	if (it) {
@@ -247,13 +251,16 @@ static void bin_get(conn *c)
 	key = bin_get_key(c);
 	nkey= c->bin_header.request.keylen;
 
+#ifdef CONFIG_VERBOSE
 	if (settings.verbose > 1) {
 		int i;
 		PRINTK("<%s GET ", current->comm);
 		for (i = 0; i < nkey; ++i) {
-			PRINTK("%c", key[i]);
+			printk(" %c", key[i]);
 		}
+		printk("\n");
 	}
+#endif
 
 	it = mc_item_get(c->who, key, nkey);
 	if (it) {
@@ -327,13 +334,16 @@ static void bin_stat(conn *c)
 	subcommand = bin_get_key(c);
 	nkey = c->bin_header.request.keylen;
 
+#ifdef CONFIG_VERBOSE
 	if (settings.verbose > 1) {
 		int i;
 		PRINTK("<%s STATS ", current->comm);
 		for (i = 0; i < nkey; ++i) {
-			PRINTK("%c", subcommand[i]);
+			printk(" %c", subcommand[i]);
 		}
+		printk("\n");
 	}
+#endif
 
 	if (nkey == 0) {
 		/* request all statistics */
@@ -413,9 +423,8 @@ static void mc_init_sasl_conn(conn *c)
 					    0,
 					    &c->sasl_conn);
 		if (result != SASL_OK) {
-			if (settings.verbose) {
-				PRINTK("failed to initialize SASL conn.");
-			}
+			PVERBOSE(0, "failed to initialize SASL conn.\n");
+
 			c->sasl_conn = NULL;
 		}
 	}
@@ -472,14 +481,13 @@ static void bin_complete_sasl_auth(conn *c)
 
 	mech = (char *)kmalloc(nkey + 1, GFP_KERNEL);
 	if (!mech) {
-		PRINTK("bin_complete_sasl_auth error");
+		PRINTK("bin_complete_sasl_auth error\n");
 		return;
 	}
 	memcpy(mech, ITEM_key((item*)c->item), nkey);
 	mech[nkey] = 0x00;
 
-	if (settings.verbose)
-		PRINTK("mech:  ``%s'' with %d bytes of data", mech, vlen);
+	PVERBOSE(0, "mech:  ``%s'' with %d bytes of data\n", mech, vlen);
 
 	challenge = vlen == 0 ? NULL : ITEM_data((item*) c->item);
 
@@ -500,18 +508,14 @@ static void bin_complete_sasl_auth(conn *c)
 		/* CMD should be one of the above */
 		/* This code is pretty much impossible, but makes the compiler
 		   happier */
-		if (settings.verbose) {
-			PRINTK("unhandled command %d with challenge %s",
-			       c->cmd, challenge);
-		}
+		PVERBOSE(0, "unhandled command %d with challenge %s\n", c->cmd, challenge);
+
 		break;
 	}
 
 	mc_item_unlink(c->who, c->item);
 
-	if (settings.verbose) {
-		PRINTK("sasl result code:  %d", result);
-	}
+	PVERBOSE(0, "sasl result code:  %d\n", result);
 
 	switch(result) {
 	case SASL_OK:
@@ -529,8 +533,7 @@ static void bin_complete_sasl_auth(conn *c)
 		c->write_and_go = conn_new_cmd;
 		break;
 	default:
-		if (settings.verbose)
-			PRINTK("unknown sasl response:  %d", result);
+		PVERBOSE(0, "unknown sasl response:  %d\n", result);
 		bin_write_error(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
 		spin_lock(&c->who->stats.lock);
 		c->who->stats.auth_cmds++;
@@ -560,22 +563,24 @@ static void bin_update(conn *c)
 	vlen = c->bin_header.request.bodylen
 	     - (nkey + c->bin_header.request.extlen);
 
+#ifdef CONFIG_VERBOSE
 	if (settings.verbose > 1) {
 		int i;
 
 		if (c->cmd == PROTOCOL_BINARY_CMD_ADD) {
-			PRINTK("<%s ADD", current->comm);
+			printk("<%s ADD\n", current->comm);
 		} else if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
-			PRINTK("<%s SET", current->comm);
+			printk("<%s SET\n", current->comm);
 		} else {
-			PRINTK("<%s REPLACE", current->comm);
+			printk("<%s REPLACE\n", current->comm);
 		}
 		for (i = 0; i < nkey; i++) {
-			PRINTK("%c", key[i]);
+			printk("%c", key[i]);
 		}
 
-		PRINTK("value len is %d", vlen);
+		PRINTK("value len is %d\n", vlen);
 	}
+#endif
 
 	if (settings.detail_enabled) {
 		mc_stats_prefix_record_set(key, nkey);
@@ -644,9 +649,7 @@ static void bin_append_prepend(conn *c)
 	nkey= c->bin_header.request.keylen;
 	vlen= c->bin_header.request.bodylen - nkey;
 
-	if (settings.verbose > 1) {
-		PRINTK("value len is %d", vlen);
-	}
+	PVERBOSE(1, "value len is %d\n", vlen);
 
 	if (settings.detail_enabled) {
 		mc_stats_prefix_record_set(key, nkey);
@@ -721,9 +724,7 @@ static void bin_delete(conn *c)
 	key = bin_get_key(c);
 	nkey= c->bin_header.request.keylen;
 
-	if (settings.verbose > 1) {
-		PRINTK("deleting %s", key);
-	}
+	PVERBOSE(1, "deleting %s\n", key);
 
 	if (settings.detail_enabled) {
 		mc_stats_prefix_record_delete(key, nkey);
@@ -772,18 +773,20 @@ static void bin_complete_incr(conn *c)
 	key = bin_get_key(c);
 	nkey= c->bin_header.request.keylen;
 
+#ifdef CONFIG_VERBOSE
 	if (settings.verbose > 1) {
 		int i;
 		PRINTK("incr ");
 
 		for (i = 0; i < nkey; i++) {
-			PRINTK("%c", key[i]);
+			printk("%c", key[i]);
 		}
 		PRINTK(" %lld, %llu, %d\n",
 		       (long long)req->message.body.delta,
 		       (long long)req->message.body.initial,
 		       req->message.body.expiration);
 	}
+#endif
 
 	if (c->bin_header.request.cas != 0) {
 		cas = c->bin_header.request.cas;
@@ -931,7 +934,7 @@ static void bin_complete_nread(conn *c)
 		bin_complete_sasl_auth(c);
 		break;
 	default:
-		PRINTK("not handling substate %d", c->substate);
+		PRINTK("not handling substate %d\n", c->substate);
 		BUG();
 		break;
 	}
@@ -941,10 +944,8 @@ static void bin_complete_nread(conn *c)
 static void handle_bin_protocol_error(conn *c)
 {
 	bin_write_error(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
-	if (settings.verbose) {
-		PRINTK("Protocol error (opcode %02x), close connection",
-		       c->bin_header.request.opcode);
-	}
+	PVERBOSE(0, "Protocol error (opcode %02x), close connection\n",
+		 c->bin_header.request.opcode);
 	c->write_and_go = conn_closing;
 }
 
@@ -973,9 +974,7 @@ static void bin_list_sasl_mechs(conn *c)
 				  NULL);
 	if (result != SASL_OK) {
 		/* Perhaps there's a better error for this... */
-		if (settings.verbose) {
-			PRINTK("Failed to list SASL mechanisms.");
-		}
+		PVERBOSE(0, "Failed to list SASL mechanisms.\n");
 		bin_write_error(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
 		return;
 	}
@@ -1001,16 +1000,11 @@ static void bin_read_key(conn *c, bin_substate_t next_substate, int extra)
 		}
 
 		if (nsize != c->cn_rsize) {
-			if (settings.verbose > 1) {
-				PRINTK("%p: Need to grow buffer from %lu to %lu",
-				       c, (unsigned long)c->cn_rsize,
-				       (unsigned long)nsize);
-			}
+			PVERBOSE(1, "%p: Need to grow buffer from %lu to %lu\n",
+				 c, (unsigned long)c->cn_rsize, (unsigned long)nsize);
+
 			if (realloc_simpbuf(&c->_rbuf, nsize, c->cn_rsize, 0)) {
-				if (settings.verbose) {
-					PRINTK(">%p: failed to grow buffer.. closing connection",
-					       c);
-				}
+				PVERBOSE(0, ">%p: failed to grow buffer.. closing connection\n", c);
 				conn_set_state(c, conn_closing);
 				return;
 			}
@@ -1021,9 +1015,7 @@ static void bin_read_key(conn *c, bin_substate_t next_substate, int extra)
 		if (c->cn_rbuf != c->cn_rcurr) {
 			memmove(c->cn_rbuf, c->cn_rcurr, c->cn_rbytes);
 			c->cn_rcurr = c->cn_rbuf;
-			if (settings.verbose > 1) {
-				PRINTK(">%p: repack input buffer", c);
-			}
+			PVERBOSE(1, ">%p: repack input buffer\n", c);
 		}
 	}
 
@@ -1051,10 +1043,8 @@ static int authenticated(conn *c)
 		}
 	}
 
-	if (settings.verbose > 1) {
-		PRINTK("authenticated() in cmd 0x%02x is %s\n",
-		       c->cmd, ret ? "true" : "false");
-	}
+	PVERBOSE(1, "authenticated() in cmd 0x%02x is %s\n",
+		 c->cmd, ret ? "true" : "false");
 
 	return ret;
 }

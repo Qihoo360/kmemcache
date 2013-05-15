@@ -6,9 +6,6 @@ CONFIG_SASL=n
 # connector request cache
 CONFIG_CN_CACHE=n
 
-# stack variable optimization
-CONFIG_STACK_OPT=y
-
 # all listen sockets share a thread 
 CONFIG_SINGLE_DISPATCHER=n
 
@@ -27,10 +24,6 @@ EXTRA_CFLAGS += -I$(PWD)/../include
 
 ifeq ($(CONFIG_CN_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_CN_CACHE
-endif
-
-ifeq ($(CONFIG_STACK_OPT),y)
-  EXTRA_CFLAGS += -DCONFIG_STACK_OPT
 endif
 
 ifeq ($(CONFIG_SINGLE_DISPATCHER),y)

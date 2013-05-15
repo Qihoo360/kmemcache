@@ -19,7 +19,7 @@ void mc_sasl_dispose(sasl_conn_t **pconn)
 
 	msg = kmalloc(size, GFP_KERNEL);
 	if (!msg) {
-		PRINTK("alloc sasl dispose msg error");
+		PRINTK("alloc sasl dispose msg error\n");
 		goto out;
 	}
 	msg->id.idx = CN_IDX_SASL_DIS;
@@ -29,11 +29,11 @@ void mc_sasl_dispose(sasl_conn_t **pconn)
 	data->pconn = pconn;
 
 	if (mc_add_callback(&msg->id, mc_sasl_dispose_callback)) {
-		PRINTK("add sasl dispose callback error");
+		PRINTK("add sasl dispose callback error\n");
 		goto free_id;
 	}
 	if (IS_ERR((out = mc_send_msg_sync(msg)))) {
-		PRINTK("send sasl dispose error");
+		PRINTK("send sasl dispose error\n");
 	}
 	if (out) {
 		mc_del_callback(&msg->id);

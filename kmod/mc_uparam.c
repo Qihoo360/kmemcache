@@ -18,7 +18,7 @@ static void* settings_init_callback(struct cn_msg *msg,
 	size = sizeof(parser_sock_t) + data->len;
 	sock_info = kmalloc(size, GFP_KERNEL);
 	if (!sock_info) {
-		PRINTK("alloc socket-parser vectory error");
+		PRINTK("alloc socket-parser vectory error\n");
 		return ERR_PTR(-ENOMEM);
 	}
 
@@ -42,12 +42,12 @@ int settings_init(void)
 
 	ret = mc_add_callback(&msg.id, settings_init_callback, 1);
 	if (unlikely(ret)) {
-		PRINTK("add settings init callback error");
+		PRINTK("add settings init callback error\n");
 		goto out;
 	}
 	out = mc_send_msg_timeout(&msg, msecs_to_jiffies(timeout * 1000));
 	if (IS_ERR(out)) {
-		PRINTK("send settings init error");
+		PRINTK("send settings init error\n");
 		ret = -EFAULT;
 	}
 

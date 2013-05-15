@@ -73,7 +73,7 @@ static int item_lock_init(int nthreads)
 
 	addr = __get_free_pages(GFP_KERNEL, order);
 	if (!addr) {
-		PRINTK("alloc item locks error");
+		PRINTK("alloc item locks error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -163,7 +163,7 @@ void mc_switch_item_lock_type(item_lock_t type)
 		struct lock_xchg_req *rq = new_lock_xchg_req();
 		if (unlikely(!rq)) {
 			PRINTK("alloc new lock-xchg request error, "
-			       "this is a fatal problem.");
+			       "this is a fatal problem.\n");
 			msleep(2000);
 			i--;
 			continue;
@@ -175,7 +175,7 @@ void mc_switch_item_lock_type(item_lock_t type)
 
 		ret = queue_work(worker_threads[i].wq, &rq->work);
 		if (unlikely(!ret)) {
-			PRINTK("lock xchg work already in the workqueue");
+			PRINTK("lock xchg work already in the workqueue\n");
 			free_lock_xchg_req(rq);
 			msleep(2000);
 			i--;
@@ -502,7 +502,7 @@ static void mc_conn_new_work(struct work_struct *work)
 
 	c = mc_conn_new(rq);
 	if (IS_ERR(c)) {
-		PRINTK("create new conn error");
+		PRINTK("create new conn error\n");
 		goto err_out;
 	} else {
 		mc_queue_conn(c);
@@ -512,7 +512,7 @@ static void mc_conn_new_work(struct work_struct *work)
 
 err_out:
 	if (IS_UDP(rq->transport)) {
-		PRINTK("can't listen on UDP socket");
+		PRINTK("can't listen on UDP socket\n");
 	}
 	sock_release(rq->sock);
 out:
@@ -553,7 +553,7 @@ int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 
 	rq = new_conn_req();
 	if (unlikely(!rq)) {
-		PRINTK("alloc new connection request error");
+		PRINTK("alloc new connection request error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -576,7 +576,7 @@ int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 
 	ret = queue_work(worker->wq, &rq->work);
 	if (unlikely(!ret)) {
-		PRINTK("new conn work already in the workqueue");
+		PRINTK("new conn work already in the workqueue\n");
 		ret = -EFAULT;
 		goto free_req;
 	}
@@ -600,14 +600,14 @@ int workers_init(void)
 	int nthreads = settings.num_threads;
 
 	if ((ret = item_lock_init(nthreads))) {
-		PRINTK("init item locks error");
+		PRINTK("init item locks error\n");
 		goto out;
 	}
 
 	worker_threads = kzalloc(nthreads * sizeof(struct worker_thread),
 				 GFP_KERNEL);
 	if (!worker_threads) {
-		PRINTK("alloc worker threads error");
+		PRINTK("alloc worker threads error\n");
 		ret = -ENOMEM;
 		goto free_item_locks;
 	}
@@ -618,7 +618,7 @@ int workers_init(void)
 		sprintf(thread, "kmcworker%d", i);
 		wq = create_singlethread_workqueue(thread);
 		if (!wq) {
-			PRINTK("create worker kthread error");
+			PRINTK("create worker kthread error\n");
 			ret = -ENOMEM;
 			goto rollback_workers;
 		}

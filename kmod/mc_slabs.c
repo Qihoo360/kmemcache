@@ -222,7 +222,7 @@ static int mc_grow_slab_list(unsigned int id)
 				     p->list_size * item_size,
 				     0);
 		if (ret) {
-			PRINTK("grow slab list error");
+			PRINFO("grow slab list error\n");
 			return -ENOMEM;
 		}
 		p->list_size = new_size;
@@ -298,9 +298,9 @@ static int mc_slabs_preallocate (unsigned int maxslabs)
 		if (++prealloc > maxslabs)
 			goto out;
 		if (mc_do_slabs_newslab(i)) {
-			PRINTK("error while preallocating slab memory!\n"
+			PRINTK("Error while preallocating slab memory!\n"
 			       "If using -L or other prealloc options, max "
-			       "memory must be at least %d megabytes.",
+			       "memory must be at least %d megabytes.\n",
 			       power_largest);
 			ret = -ENOMEM;
 			goto out;
@@ -367,15 +367,11 @@ int mc_get_stats(const char *stat_type, int nkey, add_stat_fn f, void *c)
 
 static void mc_do_slabs_stats(add_stat_fn f, void *c)
 {
-	int i, total;
-	struct thread_stats *thread_stats;
+	static struct thread_stats thread_stats;
 
-	thread_stats = kmalloc(sizeof(*thread_stats), GFP_KERNEL);
-	if (!thread_stats) {
-		PRINTK("alloc thread_stats error");
-		return;
-	}
-	mc_threadlocal_stats_aggregate(thread_stats);
+	int i, total;
+
+	mc_threadlocal_stats_aggregate(&thread_stats);
 
 	total = 0;
 	for(i = POWER_SMALLEST; i <= power_largest; i++) {
@@ -401,21 +397,21 @@ static void mc_do_slabs_stats(add_stat_fn f, void *c)
 			APPEND_NUM_STAT(i, "mem_requested", "%llu",
 				    (unsigned long long)p->requested);
 			APPEND_NUM_STAT(i, "get_hits", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].get_hits);
+			    (unsigned long long)thread_stats.slab_stats[i].get_hits);
 			APPEND_NUM_STAT(i, "cmd_set", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].set_cmds);
+			    (unsigned long long)thread_stats.slab_stats[i].set_cmds);
 			APPEND_NUM_STAT(i, "delete_hits", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].delete_hits);
+			    (unsigned long long)thread_stats.slab_stats[i].delete_hits);
 			APPEND_NUM_STAT(i, "incr_hits", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].incr_hits);
+			    (unsigned long long)thread_stats.slab_stats[i].incr_hits);
 			APPEND_NUM_STAT(i, "decr_hits", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].decr_hits);
+			    (unsigned long long)thread_stats.slab_stats[i].decr_hits);
 			APPEND_NUM_STAT(i, "cas_hits", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].cas_hits);
+			    (unsigned long long)thread_stats.slab_stats[i].cas_hits);
 			APPEND_NUM_STAT(i, "cas_badval", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].cas_badval);
+			    (unsigned long long)thread_stats.slab_stats[i].cas_badval);
 			APPEND_NUM_STAT(i, "touch_hits", "%llu",
-			    (unsigned long long)thread_stats->slab_stats[i].touch_hits);
+			    (unsigned long long)thread_stats.slab_stats[i].touch_hits);
 			total++;
 		}
 	}
@@ -425,8 +421,6 @@ static void mc_do_slabs_stats(add_stat_fn f, void *c)
 	APPEND_STAT("active_slabs", "%d", total);
 	APPEND_STAT("total_malloced", "%llu", (unsigned long long)mem_malloced);
 	f(NULL, 0, NULL, 0, c);
-
-	kfree(thread_stats);
 }
 
 /**
@@ -469,9 +463,11 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 	unsigned int size = sizeof(item) + settings.chunk_size;
 
 	/* total bytes that slabs could use */
+	if (unlikely(!slabsize))
+		return -EINVAL;
 	slabsize = (slabsize * totalram_pages * PAGE_SIZE) / 100;
 	if (limit > slabsize) {
-		PRINTK("slabs memory limit from %zu to %lu bytes", limit, slabsize);
+		PRINTK("slabs memory limit from %zu to %lu bytes\n", limit, slabsize);
 		limit = slabsize;
 	}
 	mem_limit = min((unsigned long)limit, slabsize);
@@ -479,8 +475,8 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 	if (prealloc) {
 		mem_base = vmalloc(mem_limit);
 		if (!mem_base) {
-			PRINTK("failed to allocate requested memory in "
-			       "one large chunk. Will allocate in smaller chunks.");
+			PRINTK("Warning: Failed to allocate requested memory in "
+			       "one large chunk. \nWill allocate in smaller chunks.\n");
 		} else {
 			mem_current = mem_base;
 			mem_avail = mem_limit;
@@ -654,9 +650,7 @@ static int mc_slab_rebalance_start(void)
 	/* Also tells mc_do_item_get to search for items in this slab */
 	slab_rebal.signal = 2;
 
-	if (settings.verbose > 1) {
-		PRINTK("started a slab rebalance");
-	}
+	PVERBOSE(1, "Started a slab rebalance\n");
 
 	mutex_unlock(&slabs_lock);
 	mutex_unlock(&cache_lock);
@@ -744,13 +738,11 @@ static int mc_slab_rebalance_move(void)
 						status = MOVE_BUSY;
 					}
 				} else {
-					if (settings.verbose > 2) {
-						PRINTK("slab reassign hit a busy item: "
-						       "refcount: %d (%d -> %d)",
-						       atomic_read(&it->refcount),
-						       slab_rebal.s_clsid,
-						       slab_rebal.d_clsid);
-					}
+					PVERBOSE(2, "Slab reassign hit a busy item: "
+						 "refcount: %d (%d -> %d)\n",
+						 atomic_read(&it->refcount),
+						 slab_rebal.s_clsid,
+						 slab_rebal.d_clsid);
 					status = MOVE_BUSY;
 				}
 
@@ -850,7 +842,7 @@ static void mc_slab_rebalance_finish(void)
 	stats.slabs_moved++;
 	spin_unlock(&stats_lock);
 
-	PVERBOSE(1, "finished a slab move");
+	PVERBOSE(1, "finished a slab move\n");
 }
 
 /**
@@ -866,13 +858,9 @@ static int mc_slab_automove_decision(int *src, int *dst)
 	static unsigned int slab_winner = 0;
 	static unsigned int slab_wins   = 0;
 	static rel_time_t next_run;
-#ifdef CONFIG_STACK_OPT
 	static u64 evicted_new[POWER_LARGEST];
 	static unsigned int total_pages[POWER_LARGEST];
-#else
-	u64 *evicted_new;
-	unsigned int *total_pages;
-#endif
+
 	int i;
 	int res = 0;
 	int source = 0;
@@ -887,18 +875,6 @@ static int mc_slab_automove_decision(int *src, int *dst)
 	else
 		return 0;
 
-#ifndef CONFIG_STACK_OPT
-	evicted_new = kmalloc(POWER_LARGEST, GFP_KERNEL);
-	if (!evicted_new) {
-		PRINTK("alloc evicted buffer error");
-		goto out;
-	}
-	total_pages = kmalloc(POWER_LARGEST, GFP_KERNEL);
-	if (!total_pages) {
-		PRINTK("alloc temp buffer error");
-		goto free_evic;
-	}
-#endif
 	mc_item_stats_evictions(evicted_new);
 	mutex_lock(&cache_lock);
 	for (i = POWER_SMALLEST; i < power_largest; i++) {
@@ -939,12 +915,6 @@ static int mc_slab_automove_decision(int *src, int *dst)
 		res = 1;
 	}
 
-#ifndef CONFIG_STACK_OPT
-	kfree(total_pages);
-free_evic:
-	kfree(evicted_new);
-out:
-#endif
 	return res;
 }
 
@@ -1115,7 +1085,7 @@ int start_slab_thread(void)
 	slab_mten.tsk = kthread_run(mc_slab_maintenance,
 				    NULL, "kmcslabm");
 	if (IS_ERR(slab_mten.tsk)) {
-		PRINTK("create slab maintenance thread error");
+		PRINTK("create slab maintenance thread error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -1125,7 +1095,7 @@ int start_slab_thread(void)
 	slab_rebal.tsk = kthread_run(mc_slab_rebalance,
 				     NULL, "kmcslabr");
 	if (IS_ERR(slab_rebal.tsk)) {
-		PRINTK("create slab rebalance thread error");
+		PRINTK("create slab rebalance thread error\n");
 		ret = -ENOMEM;
 		goto out_rebl_err;
 	}

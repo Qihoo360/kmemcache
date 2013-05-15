@@ -52,7 +52,7 @@ int hash_init(int power)
 	bytes = hashsize(hashpower) * sizeof(void *);
 	ret = alloc_buffer(&primary_hts, bytes, __GFP_ZERO);
 	if (ret) {
-		PRINTK("alloc primary_hashtable error");
+		PRINTK("alloc primary_hashtable error\n");
 		goto out;
 	} else {
 		BUFFER_PTR(&primary_hts, primary_hashtable);
@@ -137,8 +137,7 @@ static void mc_hash_expand(void)
 	bytes = hashsize(hashpower + 1) * sizeof(void *);
 	ret = alloc_buffer(&primary_hts, bytes, __GFP_ZERO);
 	if (!ret) {
-		if (settings.verbose > 1)
-			PRINTK("hash table expansion starting");
+		PVERBOSE(1, "hash table expansion starting\n");
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 		hashpower++;
 		set_bit(EXPANDING, &hashflags);
@@ -151,7 +150,7 @@ static void mc_hash_expand(void)
 		spin_unlock(&stats_lock);
 	} else {
 		/* bad news, but we can keep running */
-		PRINTK("hash table expansion error");
+		PRINTK("hash table expansion error\n");
 		memcpy(&primary_hts, &old_hts, sizeof(old_hts));
 		primary_hashtable = old_hashtable;
 	}
@@ -256,9 +255,7 @@ static int mc_hash_thread(void *ignore)
 						    sizeof(void *);
 				stats.hash_is_expanding = 0;
 				spin_unlock(&stats_lock);
-				if (settings.verbose > 1) {
-					PRINTK("hash table expansion done");
-				}
+				PVERBOSE(1, "hash table expansion done\n");
 			}
 		}
 
@@ -303,7 +300,7 @@ int start_hash_thread(void)
 				   NULL, "kmchash");
 	if (IS_ERR(hash_kthread)) {
 		ret = PTR_ERR(hash_kthread);
-		PRINTK("create hash kthread error");
+		PRINTK("create hash kthread error\n");
 		goto out;
 	}
 

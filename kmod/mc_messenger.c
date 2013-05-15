@@ -61,7 +61,7 @@ static void mc_conn_free(conn *c)
 		buf = &container_of(&(_val), _type, _mem)->_buf;\
 		ret = alloc_buffer(buf, size, 0);		\
 		if (ret) {					\
-			PRINTK("alloc buffer error");		\
+			PRINTK("alloc buffer error\n");		\
 			goto OOM;				\
 		}						\
 		BUFFER_PTR(buf, _val);				\
@@ -72,7 +72,7 @@ conn* mc_conn_new(struct conn_req *rq)
 	conn *c = _conn_new();
 
 	if (!c) {
-		PRINTK("alloc new conn error");
+		PRINTK("alloc new conn error\n");
 		c = ERR_PTR(-ENOMEM);
 		goto out;
 	}
@@ -146,9 +146,7 @@ out:
 
 void mc_conn_close(conn *c)
 {
-	if (settings.verbose > 1) {
-		PRINTK("<%p connection closed", c);
-	}
+	PVERBOSE(1, "<%p connection closed\n", c);
 	set_bit(EV_DEAD, &c->event);
 	if (!IS_UDP(c->transport)) {
 		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
@@ -222,34 +220,16 @@ int update_event(conn *c, int flag)
 
 	switch (flag) {
 	case EV_READ:
-		if (test_bit(EV_RDWR, &c->event))
-			break;
-		if (work_pending(&c->work)) {
-			set_bit(EV_RDWR, &c->event);
-			cancel_work_sync(&c->work);
-			mc_conn_put(c);
-		} else {
-			set_bit(EV_RDWR, &c->event);
-		}
+		set_bit(EV_RDWR, &c->event);
 		break;
 	case EV_WRITE:
-		if (!test_bit(EV_RDWR, &c->event))
-			break;
-		if (work_pending(&c->work)) {
-			clear_bit(EV_RDWR, &c->event);
-			cancel_work_sync(&c->work);
-			mc_conn_put(c);
-		} else {
-			clear_bit(EV_RDWR, &c->event);
-		}
+		clear_bit(EV_RDWR, &c->event);
 		break;
 	case EV_DEAD:
 		set_bit(EV_DEAD, &c->event);
+		break;
 	default:
-		if (work_pending(&c->work)) {
-			cancel_work_sync(&c->work);
-			mc_conn_put(c);
-		}
+		BUG();
 		break;
 	}
 
@@ -382,7 +362,7 @@ static inline void __queue_conn(conn *c)
 {
 	/* release in mc_conn_work */
 	if (!mc_conn_get(c)) {
-		PRINTK("mc_queue_conn %p ref count 0", c);
+		PRINTK("mc_queue_conn %p ref count 0\n", c);
 		return;
 	}
 
@@ -424,7 +404,7 @@ void mc_requeue_conn(conn *c)
 		if (poll & CONN_WRITE) {
 			goto queue_conn;
 		} else {
-			PRINTK("mc_queue_conn %p ignore EV_WRITE", c);
+			PRINTK("mc_queue_conn %p ignore EV_WRITE\n", c);
 		}
 	}
 

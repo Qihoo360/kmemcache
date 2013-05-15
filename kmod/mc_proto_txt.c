@@ -271,10 +271,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 					}
 				}
 
-
-				if (settings.verbose > 1) {
-					PRINTK(">%s sending key %s", current->comm, ITEM_key(it));
-				}
+				PVERBOSE(1, ">%s sending key %s\n", current->comm, ITEM_key(it));
 
 				/* item_get() has incremented it->refcount for us */
 				spin_lock(&c->who->stats.lock);
@@ -313,8 +310,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 		c->cn_suffixleft = i;
 	}
 
-	if (settings.verbose > 1)
-		PRINTK(">%s END\n", current->comm);
+	PVERBOSE(1, ">%s END\n", current->comm);
 
 	/*
 	 * If the loop was terminated because of out-of-memory, it is not
@@ -600,8 +596,7 @@ static void txt_dispatch_command(conn *c, char *command)
 	size_t ntokens;
 	int comm;
 
-	if (settings.verbose > 1)
-		PRINTK("<%s %s\n", current->comm, command);
+	PVERBOSE(1, "<%s %s\n", current->comm, command);
 
 	/*
 	 * for commands set/add/replace, we build an item and read the data

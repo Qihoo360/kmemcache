@@ -54,11 +54,9 @@ static const char* prot_text[] = {
 void conn_set_state(conn *c, conn_state_t state)
 {
 	if (state != c->state) {
-		if (settings.verbose > 2) {
-			PRINTK(">%p: going from %s to %s",
-			       c, state_text[c->state],
-			       state_text[state]);
-		}
+		PVERBOSE(2, ">%p: going from %s to %s\n",
+			 c, state_text[c->state],
+			 state_text[state]);
 
 		c->state = state;
 	}
@@ -250,11 +248,10 @@ store_item_t mc_do_store_item(item *it, int comm, conn* c, u32 hv)
 			c->who->stats.slab_stats[old_it->slabs_clsid].cas_badval++;
 			spin_unlock(&c->who->stats.lock);
 
-			if(settings.verbose > 1) {
-				PRINTK("CAS:  failure: expected %llu, got %llu\n",
-				       (unsigned long long)ITEM_get_cas(old_it),
-				       (unsigned long long)ITEM_get_cas(it));
-			}
+			PVERBOSE(1, "CAS:  failure: expected %llu, got %llu\n",
+				 (unsigned long long)ITEM_get_cas(old_it),
+				 (unsigned long long)ITEM_get_cas(it));
+
 			stored = EXISTS;
 		}
 	} else {
@@ -441,7 +438,7 @@ void mc_server_stats(add_stat_fn f, conn *c)
 
 	thread_stats = kmalloc(sizeof(*thread_stats), GFP_KERNEL);
 	if (!thread_stats) {
-		PRINTK("alloc thread_stats temp error");
+		PRINTK("alloc thread_stats temp error\n");
 		return;
 	}
 
@@ -507,17 +504,13 @@ void mc_out_string(conn *c, const char *str)
 	size_t len;
 
 	if (c->noreply) {
-		if (settings.verbose > 1) {
-			PRINTK(">%p NOREPLY %s", c, str);
-		}
+		PVERBOSE(1, ">%p NOREPLY %s\n", c, str);
 		c->noreply = 0;
 		conn_set_state(c, conn_new_cmd);
 		return;
 	}
 
-	if (settings.verbose > 1) {
-		PRINTK(">%p %s", c, str);
-	}
+	PVERBOSE(1, ">%p %s\n", c, str);
 
 	/* Nuke a partial output... */
 	c->cn_msgcurr = 0;
@@ -729,10 +722,8 @@ static int try_read_command(conn *c)
 			c->proto_ops = &txt_proto_ops;
 		}
 
-		if (settings.verbose > 1) {
-			PRINTK(">%p: client using the %s protocol",
-			       c, prot_text[c->cn_protocol]);
-		}
+		PVERBOSE(1, ">%p: client using the %s protocol\n",
+			 c, prot_text[c->cn_protocol]);
 	}
 
 	if (c->cn_protocol == binary_prot) {
@@ -748,24 +739,26 @@ static int try_read_command(conn *c)
 				/* must realign input buffer */
 				memmove(c->cn_rbuf, c->cn_rcurr, c->cn_rbytes);
 				c->cn_rcurr = c->cn_rbuf;
-				if (settings.verbose > 1) {
-					PRINTK(">%p: realign input buffer", c);
-				}
+				PVERBOSE(1, ">%p: realign input buffer\n", c);
+
 			}
 #endif
 			req = (protocol_binary_request_header*)c->cn_rcurr;
 
+#ifdef CONFIG_VERBOSE
 			if (settings.verbose > 1) {
 				/* Dump the packet before we convert it to host order */
 				int i;
-				PRINTK("<%p read binary protocol data:", c);
+				PRINTK("<%p read binary protocol data:\n", c);
 				for (i = 0; i < sizeof(req->bytes); ++i) {
 					if (i % 4 == 0) {
-						PRINTK("<%p   ", c);
+						printk("<%p   ", c);
 					}
-					PRINTK(" 0x%02x", req->bytes[i]);
+					printk(" 0x%02x", req->bytes[i]);
 				}
+				printk("\n");
 			}
+#endif
 
 			c->bin_header = *req;
 			c->bin_header.request.keylen = ntohs(req->request.keylen);
@@ -773,9 +766,7 @@ static int try_read_command(conn *c)
 			c->bin_header.request.cas = ntohll(req->request.cas);
 
 			if (c->bin_header.request.magic != PROTOCOL_BINARY_REQ) {
-				if (settings.verbose) {
-					PRINTK("invalid magic:  %x", c->bin_header.request.magic);
-				}
+				PVERBOSE(0, "invalid magic:  %x\n", c->bin_header.request.magic);
 				conn_set_state(c, conn_closing);
 				return -EFAULT;
 			}
@@ -912,8 +903,7 @@ static try_read_result_t try_read_network(conn *c)
 			++num_allocs;
 			res = realloc_simpbuf(&c->_rbuf, c->cn_rsize * 2, c->cn_rsize, 0);
 			if (res) {
-				if (settings.verbose > 0)
-					PRINTK("couldn't realloc input buffer");
+				PVERBOSE(0, "couldn't realloc input buffer\n");
 				c->cn_rbytes = 0; /* ignore what we read */
 				mc_out_string(c, "SERVER_ERROR out of memory reading request");
 				c->write_and_go = conn_closing;
@@ -999,8 +989,7 @@ static transmit_result_t transmit(conn *c)
 		}
 		if (res < 0 && (res == -EAGAIN || res == -EWOULDBLOCK)) {
 			if (update_event(c, EV_WRITE)) {
-				if (settings.verbose > 0)
-					PRINTK("couldn't update event");
+				PVERBOSE(0, "couldn't update event\n");
 				conn_set_state(c, conn_closing);
 				return TRANSMIT_HARD_ERROR;
 			}
@@ -1011,8 +1000,7 @@ static transmit_result_t transmit(conn *c)
 		 * if res == 0 or res <0(not EAGAIN or EWOULDBLOCK),
 		 * we have a real error, on which we close the connection
 		 */
-		if (settings.verbose > 0)
-			PRINTK("failed to write, and not due to blocking");
+		PVERBOSE(0, "failed to write, and not due to blocking\n");
 
 		if (IS_UDP(c->transport))
 			conn_set_state(c, conn_read);
@@ -1037,8 +1025,7 @@ more:
 		break;
 	case conn_waiting:
 		if (update_event(c, EV_READ)) {
-			if (settings.verbose > 0)
-				PRINTK("couldn't update event");
+			PVERBOSE(0, "couldn't update event\n");
 			conn_set_state(c, conn_closing);
 			break;
 		}
@@ -1093,8 +1080,7 @@ more:
 
 			if (c->cn_rbytes > 0) {
 				if (update_event(c, EV_WRITE)) {
-					if (settings.verbose > 0)
-						PRINTK("couldn't update event");
+					PVERBOSE(0, "couldn't update event\n");
 					conn_set_state(c, conn_closing);
 				}
 			}
@@ -1143,8 +1129,7 @@ more:
 		}
 		if (res <0 && (res == -EAGAIN || res == -EWOULDBLOCK)) {
 			if (update_event(c, EV_READ)) {
-				if (settings.verbose > 0)
-					PRINTK("Couldn't update event");
+				PVERBOSE(0, "Couldn't update event\n");
 				conn_set_state(c, conn_closing);
 				break;
 			}
@@ -1152,14 +1137,11 @@ more:
 			break;
 		}
 		/* otherwise we have a real error, on which we close the connection */
-		if (settings.verbose > 0) {
-			PRINTK("failed to read, and not due to blocking:"
-				"errno: %d "
-				"cn_rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d cn_rsize=%d",
-				-res,
-				(long)c->cn_rcurr, (long)c->ritem, (long)c->cn_rbuf,
-				(int)c->rlbytes, (int)c->cn_rsize);
-		}
+		PVERBOSE(0,"failed to read, and not due to blocking:"
+			 "errno: %d cn_rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d cn_rsize=%d\n",
+			 -res, (long)c->cn_rcurr, (long)c->ritem, (long)c->cn_rbuf,
+			 (int)c->rlbytes, (int)c->cn_rsize);
+
 		conn_set_state(c, conn_closing);
 		break;
 
@@ -1196,8 +1178,7 @@ more:
 		}
 		if (res < 0 && (res == -EAGAIN || res == -EWOULDBLOCK)) {
 			if (update_event(c, EV_READ )) {
-				if (settings.verbose > 0)
-					PRINTK("Couldn't update event");
+				PVERBOSE(0, "Couldn't update event\n");
 				conn_set_state(c, conn_closing);
 				break;
 			}
@@ -1205,8 +1186,7 @@ more:
 			break;
 		}
 		/* otherwise we have a real error, on which we close the connection */
-		if (settings.verbose > 0)
-			PRINTK("failed to read, and not due to blocking");
+		PVERBOSE(0, "failed to read, and not due to blocking\n");
 		conn_set_state(c, conn_closing);
 		break;
 
@@ -1218,8 +1198,7 @@ more:
 		 */
 		if (c->cn_iovused == 0 || (IS_UDP(c->transport) && c->cn_iovused == 1)) {
 			if (mc_add_iov(c, c->cn_wcurr, c->cn_wbytes) != 0) {
-				if (settings.verbose > 0)
-					PRINTK("couldn't build response");
+				PVERBOSE(0, "couldn't build response\n");
 				conn_set_state(c, conn_closing);
 				break;
 			}
@@ -1231,8 +1210,7 @@ more:
 		if (IS_UDP(c->transport) &&
 		    c->cn_msgcurr == 0 &&
 		    mc_build_udp_headers(c) != 0) {
-			if (settings.verbose > 0)
-				PRINTK("failed to build UDP headers");
+			PVERBOSE(0, "failed to build UDP headers\n");
 			conn_set_state(c, conn_closing);
 			break;
 		}
@@ -1264,8 +1242,7 @@ more:
 				}
 				conn_set_state(c, c->write_and_go);
 			} else {
-				if (settings.verbose > 0)
-					PRINTK("unexpected state %d", c->state);
+				PVERBOSE(0, "unexpected state %d\n", c->state);
 				conn_set_state(c, conn_closing);
 			}
 			break;

@@ -158,7 +158,7 @@ static int caches_info_init(void)
 						   SLAB_HWCACHE_ALIGN,
 						   cache->ctor);
 		if (!*cache->cachep) {
-			PRINTK("create kmem cache error");
+			PRINTK("create kmem cache error\n");
 			goto out;
 		}
 	}
@@ -174,59 +174,59 @@ static int __kmemcache_bh_init(void *unused)
 	int ret = 0;
 
 	if ((ret = settings_init())) {
-		PRINTK("init settings error");
+		PRINTK("init settings error\n");
 		goto out;
 	}
 	if ((ret = caches_info_init())) {
-		PRINTK("init caches error");
+		PRINTK("init caches error\n");
 		goto del_set;
 	}
 	if ((ret = stats_init())) {
-		PRINTK("init stats error");
+		PRINTK("init stats error\n");
 		goto del_caches;
 	}
 	if ((ret = slabs_init(settings.maxbytes,
 			      settings.factor_numerator,
 			      settings.factor_denominator,
 			      settings.preallocate))) {
-		PRINTK("init slabs error");
+		PRINTK("init slabs error\n");
 		goto del_stats;
 	}
 	if ((ret = hash_init(settings.hashpower_init))) {
-		PRINTK("init hashtable error");
+		PRINTK("init hashtable error\n");
 		goto del_slabs;
 	}
 	if ((ret = dispatcher_init())) {
-		PRINTK("init dispatcher error");
+		PRINTK("init dispatcher error\n");
 		goto del_hash;
 	}
 	if ((ret = workers_init())) {
-		PRINTK("init workers error");
+		PRINTK("init workers error\n");
 		goto del_dispatcher;
 	}
 	if ((ret = start_hash_thread())) {
-		PRINTK("init hashtable kthread error");
+		PRINTK("init hashtable kthread error\n");
 		goto del_workers;
 	}
 	if ((ret = start_slab_thread())) {
-		PRINTK("init slab kthread error");
+		PRINTK("init slab kthread error\n");
 		goto del_hash_thread;
 	}
 	if ((ret = timer_init())) {
-		PRINTK("init timer error");
+		PRINTK("init timer error\n");
 		goto del_slab_thread;
 	}
 	if ((ret = server_init())) {
-		PRINTK("init server socket error");
+		PRINTK("init server socket error\n");
 		goto del_timer;
 	}
 	if ((ret = oom_init())) {
-		PRINTK("init oom error");
+		PRINTK("init oom error\n");
 		goto del_server;
 	}
 
 	cache_bh_status = 1;
-	PRINTK("start server success");
+	PRINTK("start server success\n");
 	return 0;
 
 del_server:
@@ -253,7 +253,7 @@ del_caches:
 del_set:
 	settings_exit();
 out:
-	PRINTK("start server error");
+	PRINTK("start server error\n");
 	return ret;
 }
 
@@ -269,7 +269,7 @@ static void* kmemcache_bh_init(struct cn_msg *msg,
 
 	helper = kthread_run(__kmemcache_bh_init, NULL, "kmcbh");
 	if (IS_ERR(helper)) {
-		PRINTK("create kmemcache bh kthread error");
+		PRINTK("create kmemcache bh kthread error\n");
 	}
 
 	return NULL;
@@ -286,12 +286,12 @@ static int __init kmemcache_init(void)
 
 	ret = connector_init();
 	if (ret) {
-		PRINTK("init connector error");
+		PRINTK("init connector error\n");
 		goto out;
 	}
 	ret = register_kmemcache_bh();
 	if (ret) {
-		PRINTK("register kmemcache bh error");
+		PRINTK("register kmemcache bh error\n");
 		goto cn_exit;
 	}
 
@@ -318,7 +318,7 @@ static void __exit kmemcache_exit(void)
 		caches_info_exit();
 		oom_exit();
 
-		PRINTK("stop server success");
+		PRINTK("stop server success\n");
 	} else {
 		unregister_kmemcache_bh();
 	}

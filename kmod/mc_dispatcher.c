@@ -47,7 +47,7 @@ void mc_accept_new_conns(int enable)
 	list_for_each_entry(ss, &dsper.listen_list, list) {
 		int backlog = enable ? settings.backlog : 0;
 		if (kernel_listen(ss->sock, backlog)) {
-			PRINTK("mc_accept_new_conns listen error");
+			PRINTK("mc_accept_new_conns listen error\n");
 		}
 	}
 	spin_unlock(&dsper.sock_lock);
@@ -95,13 +95,11 @@ static void mc_sock_work(struct serve_sock *ss)
 		set_anon_sock_callbacks(nsock);
 	} else {
 		if (ret == -EMFILE) {
-			if (settings.verbose > 0) {
-				PRINTK("too many open connections");
-			}
+			PVERBOSE(0,"too many open connections\n"); 
 			mc_accept_new_conns(0);
 			/*FIXME: cancel request */
 		}
-		PRINTK("accept new socket error");
+		PRINFO("accept new socket error\n");
 		return;
 	}
 
@@ -110,7 +108,7 @@ static void mc_sock_work(struct serve_sock *ss)
 		static char *str = "ERROR Too many open connections\r\n";
 
 		if (mc_send(nsock, str, strlen(str))) {
-			PRINTK("serve sends connection msg error");
+			PRINTK("serve sends connection msg error\n");
 		}
 		goto err_out;
 	} else {
@@ -120,7 +118,7 @@ static void mc_sock_work(struct serve_sock *ss)
 					   DATA_BUF_SIZE, ss->transport);
 		if (unlikely(ret)) {
 			if (mc_send(nsock, str, strlen(str))) {
-				PRINTK("serve sends connection msg error");
+				PRINTK("serve sends connection msg error\n");
 			}
 			goto err_out;
 		}
@@ -203,7 +201,7 @@ static void inline _queue(struct serve_sock *ss)
 		return;
 	}
 	if (test_bit(conn_closing, &ss->state)) {
-		PRINTK("server socket closing");
+		PRINFO("server socket closing\n");
 		return;
 	}
 #ifdef CONFIG_SINGLE_DISPATCHER
@@ -280,7 +278,7 @@ static int log_socket_port(struct socket *sock, net_transport_t trans, struct fi
 
 	ret = kernel_getsockname(sock, (struct sockaddr *)&addr, &addrlen);
 	if (ret) {
-		PRINTK("kernel_getsockname error");
+		PRINTK("kernel_getsockname error\n");
 		goto out;
 	}
 
@@ -305,8 +303,9 @@ out:
  */
 static int maximize_sendbuf(struct socket *sock)
 {
+#ifdef CONFIG_DEBUG
 	return 0;
-/*
+#else
 	int ret = 0;
 	int old_size;
 	int intsize = sizeof(old_size);
@@ -314,7 +313,7 @@ static int maximize_sendbuf(struct socket *sock)
 
 	if ((ret = kernel_getsockopt(sock, SOL_SOCKET, SO_SNDBUF,
 				    (char *)&old_size, &intsize))) {
-		PRINTK("kernel_getsockopt(SO_SNDBUF) error");
+		PRINTK("kernel_getsockopt(SO_SNDBUF) error\n");
 		goto out;
 	}
 
@@ -332,11 +331,10 @@ static int maximize_sendbuf(struct socket *sock)
 		}
 	}
 
-	if (settings.verbose > 1)
-		PRINTK("server socket send buffer : %d/%d", old_size, last_good);
+	PVERBOSE(1, "server socket send buffer : %d/%d\n", old_size, last_good);
 out:
 	return ret;
-*/
+#endif
 }
 
 static struct serve_sock* __alloc_serve_sock(net_transport_t trans)
@@ -348,7 +346,7 @@ static struct serve_sock* __alloc_serve_sock(net_transport_t trans)
 
 	ss = kzalloc(sizeof(*ss), GFP_KERNEL);
 	if (!ss) {
-		PRINTK("alloc serve sock error");
+		PRINTK("alloc serve sock error\n");
 		goto out;
 	}
 	ss->transport = trans;
@@ -366,7 +364,7 @@ static struct serve_sock* __alloc_serve_sock(net_transport_t trans)
 	barrier();
 	ss->dsp_tsk = kthread_run(mc_disp_kthread, ss, "kmcdspt%d", ++id);
 	if (IS_ERR(ss->dsp_tsk)) {
-		PRINTK("create dispatcher kthread(%d) error", id);
+		PRINTK("create dispatcher kthread(%d) error\n", id);
 		kfree(ss);
 		ss = NULL;
 	}
@@ -399,7 +397,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 
 	ss = __alloc_serve_sock(se->trans);
 	if (!ss) {
-		PRINTK("alloc server socket error");
+		PRINTK("alloc server socket error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -407,7 +405,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 	if ((ret = sock_create_kern(se->family, se->type,
 				    se->protocol, &ss->sock))) {
 		PRINTK("create server socket error(%d), "
-		       "family=%d, type=%d, protocol=%d",
+		       "family=%d, type=%d, protocol=%d\n",
 		       ret, se->family, se->type, se->protocol);
 		goto free_sock;
 	}
@@ -420,7 +418,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 		    	      (char *)&flags, sizeof(flags))) ||
 	    kernel_setsockopt(ss->sock, SOL_SOCKET, SO_REUSEADDR,
 		    	      (char *)&flags, sizeof(flags))) {
-		PRINTK("set server socket option error");
+		PRINTK("set server socket option error\n");
 		ret = -EIO;
 		goto release_sock;
 	}
@@ -435,7 +433,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 			    	      (char *)&ling, sizeof(ling)) ||
 		    kernel_setsockopt(ss->sock, IPPROTO_TCP, TCP_NODELAY,
 			    	      (char *)&flags, sizeof(flags))) {
-			PRINTK("set server socket option error");
+			PRINTK("set server socket option error\n");
 			ret = -EIO;
 			goto release_sock;
 		}
@@ -443,14 +441,14 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 
 	if ((ret = kernel_bind(ss->sock, (struct sockaddr *)se->addr,
 			       se->addrlen))) {
-		PRINTK("bind server socket error");
+		PRINTK("bind server socket error\n");
 		goto release_sock;
 	}
 
 	if (!IS_UDP(se->trans)) {
 		ret = kernel_listen(ss->sock, settings.backlog);
 		if (ret) {
-			PRINTK("listen server socket error");
+			PRINTK("listen server socket error\n");
 			goto release_sock;
 		}
 	}
@@ -458,7 +456,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 	if (se->family == AF_INET || se->family == AF_INET6) {
 		ret = log_socket_port(ss->sock, ss->transport, filp);
 		if (ret) {
-			PRINTK("log server socket port error");
+			PRINTK("log server socket port error\n");
 			goto release_sock;
 		}
 	}
@@ -471,7 +469,7 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 						   UDP_READ_BUF_SIZE,
 						   ss->transport);
 			if (res) {
-				PRINTK("dispatch udp conn error");
+				PRINTK("dispatch udp conn error\n");
 			} else {
 				ret++;
 			}
@@ -510,27 +508,27 @@ static int unlink_socket_file(const char *name)
 	struct path path;
 
 	if (!name) {
-		PRINTK("unix socket path arg error");
+		PRINTK("unix socket path arg error\n");
 		ret = -EINVAL;
 		goto out;
 	}
 	if (strlen(name) + 1 > UNIX_PATH_MAX) {
-		PRINTK("unix socket path too long");
+		PRINTK("unix socket path too long\n");
 		ret = -EINVAL;
 		goto out;
 	}
 	if (kern_path(name, LOOKUP_FOLLOW, &path)) {
-		PRINTK("parse unix socket path error");
+		PRINTK("parse unix socket path error\n");
 		ret = -EINVAL;
 		goto out;
 	}
 	if (path.dentry->d_inode && S_ISSOCK(path.dentry->d_inode->i_mode)) {
 		if ((ret = mnt_want_write(path.mnt))) {
-			PRINTK("access permission error");
+			PRINTK("access permission error\n");
 			goto put;
 		}
 		if ((ret = vfs_unlink(path.dentry->d_parent->d_inode, path.dentry))) {
-			PRINTK("delete unix socket file error");
+			PRINTK("delete unix socket file error\n");
 		}
 		mnt_drop_write(path.mnt);
 	}
@@ -550,19 +548,19 @@ static int server_socket_unix(const char *path, int access_mask)
 	struct serve_sock *ss;
 
 	if ((ret = unlink_socket_file(path))) {
-		PRINTK("unlink unix socket file error");
+		PRINTK("unlink unix socket file error\n");
 		goto out;
 	}
 
 	ss = __alloc_serve_sock(local_transport);
 	if (!ss) {
-		PRINTK("alloc unix socket error");
+		PRINTK("alloc unix socket error\n");
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	if ((ret = sock_create_kern(AF_UNIX, SOCK_STREAM, 0, &ss->sock))) {
-		PRINTK("create unix socket error");
+		PRINTK("create unix socket error\n");
 		goto free_sock;
 	}
 	set_sock_callbacks(ss->sock, ss);
@@ -572,7 +570,7 @@ static int server_socket_unix(const char *path, int access_mask)
 		    	      (char *)&flags, sizeof(flags)) ||
 	    kernel_setsockopt(ss->sock, SOL_SOCKET, SO_LINGER,
 		    	      (char *)&ling, sizeof(ling))) {
-		PRINTK("set unix socket option error");
+		PRINTK("set unix socket option error\n");
 		ret = -EIO;
 		goto release_sock;
 	}
@@ -583,13 +581,13 @@ static int server_socket_unix(const char *path, int access_mask)
 	access_mask = xchg(&current->fs->umask, ~(access_mask & S_IRWXUGO));
 	if ((ret = kernel_bind(ss->sock, (struct sockaddr *)&addr,
 			       sizeof(addr) - 1))) {
-		PRINTK("bind unix socket error");
+		PRINTK("bind unix socket error\n");
 		(void)xchg(&current->fs->umask, access_mask);
 		goto release_sock;
 	}
 	(void)xchg(&current->fs->umask, access_mask);
 	if ((ret = kernel_listen(ss->sock, settings.backlog))) {
-		PRINTK("listen unix socket error");
+		PRINTK("listen unix socket error\n");
 		goto release_sock;
 	}
 
@@ -640,7 +638,7 @@ int server_init(void)
 	char *path = NULL;
 
 	if (!sock_info) {
-		PRINTK("invalid socket info");
+		PRINTK("invalid socket info\n");
 		return -EFAULT;
 	}
 
@@ -657,13 +655,13 @@ int server_init(void)
 		if (sock_info->flags & PORT_FILE) {
 			path = parse_port_file(sock_info->data, sock_info->len);
 			if (!path) {
-				PRINTK("parse socket port file error");
+				PRINTK("parse socket port file error\n");
 				goto out;
 			}
 			filp = filp_open(path, O_RDWR | O_APPEND | O_CREAT,
 					 S_IRUGO | S_IWUGO);
 			if (IS_ERR(filp)) {
-				PRINTK("open socket port file error");
+				PRINTK("open socket port file error\n");
 				goto out;
 			}
 		} else {
@@ -741,7 +739,7 @@ int dispatcher_init(void)
 	dsper.dsp_tsk = kthread_run(mc_disp_kthread,
 			NULL, "kmcdspt");
 	if (IS_ERR(dsper.dsp_tsk)) {
-		PRINTK("create dispatcher kthread error");
+		PRINTK("create dispatcher kthread error\n");
 		ret = PTR_ERR(dsper.dsp_tsk);
 	}
 #endif

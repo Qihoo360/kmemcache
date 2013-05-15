@@ -336,12 +336,12 @@ int safe_strtol(const char *str, s32 *out);
 
 #ifdef CONFIG_DEBUG
 #define PRINTK(fmt, ...) \
-	printk(KERN_ERR LOG_PREFIX "%s:%d: " fmt "\n", __func__, __LINE__, ##__VA_ARGS__)
+	printk(KERN_ERR LOG_PREFIX "%s:%d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
 #define PRINFO(fmt, ...) PRINTK(fmt, ##__VA_ARGS__)
 #else
-#define PRINTK(fmt, ...) \
-	printk(KERN_ERR LOG_PREFIX fmt "\n", ##__VA_ARGS__)
 #define PRINFO(fmt, ...)
+#define PRINTK(fmt, ...) \
+	printk(KERN_ERR LOG_PREFIX fmt, ##__VA_ARGS__)
 #endif
 
 #ifdef CONFIG_VERBOSE

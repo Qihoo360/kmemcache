@@ -391,7 +391,7 @@ static void main_loop(void)
 	}
 
 	if (!fork()) {
-		sleep(10);
+		sleep(5);
 		netlink_send_cache_bh(sock);
 		close(sock);
 		return;

@@ -431,7 +431,7 @@ int mc_do_item_cachedump(unsigned int slabs_clsid,
 	}
 	ret = alloc_buffer(buf, BUFFER_SIZE, 0);
 	if (ret) {
-		PRINTK("mc_do_item_cachedump alloc mem error");
+		PRINTK("mc_do_item_cachedump alloc mem error\n");
 		goto free_temp;
 	}
 	BUFFER_PTR(buf, dumpstr);
@@ -599,9 +599,9 @@ item *mc_do_item_get(const char *key, size_t nkey, u32 hv)
 
 	if (settings.verbose > 2) {
 		if (it == NULL) {
-			PRINTK("> NOT FOUND %s", key);
+			PRINTK("> NOT FOUND %s\n", key);
 		} else {
-			PRINTK("> FOUND KEY %s", ITEM_key(it));
+			PRINTK("> FOUND KEY %s\n", ITEM_key(it));
 			was_found++;
 		}
 	}
@@ -613,14 +613,14 @@ item *mc_do_item_get(const char *key, size_t nkey, u32 hv)
 			mc_do_item_remove(it);
 			it = NULL;
 			if (was_found) {
-				PRINTK(" -nuked by flush");
+				PRINTK(" -nuked by flush\n");
 			}
 		} else if (it->exptime != 0 && it->exptime <= current_time) {
 			mc_do_item_unlink(it, hv);
 			mc_do_item_remove(it);
 			it = NULL;
 			if (was_found) {
-				PRINTK(" -nuked by expire");
+				PRINTK(" -nuked by expire\n");
 			}
 		} else {
 			it->it_flags |= ITEM_FETCHED;
@@ -628,8 +628,7 @@ item *mc_do_item_get(const char *key, size_t nkey, u32 hv)
 		}
 	}
 
-	if (settings.verbose > 2)
-		PRINTK("\n");
+	PVERBOSE(2, "\n");
 
 	return it;
 }

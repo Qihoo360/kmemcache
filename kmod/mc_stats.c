@@ -79,12 +79,12 @@ static prefix_stats_t* mc_stats_prefix_find(const char *key, size_t nkey)
 
 	pfs = kmem_cache_alloc(prefix_cachep, GFP_KERNEL);
 	if (!pfs) {
-		PRINTK("allocate space for stats structure error");
+		PRINTK("allocate space for stats structure error\n");
 		return NULL;
 	}
 	pfs->prefix = kmalloc(len + 1, GFP_KERNEL);
 	if (!pfs->prefix) {
-		PRINTK("allocate space for prefix of prefix_stats structure error");
+		PRINTK("allocate space for prefix of prefix_stats structure error\n");
 		kfree(pfs);
 		return NULL;
 	}
@@ -176,7 +176,7 @@ int mc_stats_prefix_dump(struct buffer *buf)
 	res = alloc_buffer(buf, size, 0);
 	if (res) {
 		mutex_unlock(&prefix_stats_lock);
-		PRINTK("can't allocate stats response");
+		PRINTK("can't allocate stats response\n");
 		goto out;
 	}
 	BUFFER_PTR(buf, dumpstr);
