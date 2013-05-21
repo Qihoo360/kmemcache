@@ -170,6 +170,7 @@ int	mc_recvfrom(struct socket *sock, void *buf, size_t len, int flags,
 int	mc_recv(struct socket *sock, void *buf, size_t len);
 int	mc_send(struct socket *sock, void *buf, size_t len);
 int	mc_sendmsg(struct socket *sock, struct msghdr *msg);
+int	mc_s2clog(struct socket *sock, int type);
 
 static inline int realloc_simpbuf(struct simpbuf *sbuf,
 				  size_t len, size_t valid, int move)

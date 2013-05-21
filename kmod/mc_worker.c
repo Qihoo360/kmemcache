@@ -652,7 +652,6 @@ void workers_exit(void)
 {
 	int i;
 	conn *c, *n;
-	struct serve_sock *ss, *m;
 	int nthreads = settings.num_threads;
 	struct worker_thread *worker;
 
@@ -669,19 +668,14 @@ void workers_exit(void)
 		flush_workqueue(worker->wq);
 		destroy_workqueue(worker->wq);
 	}
-	list_for_each_entry_safe(ss, m, &dsper.udp_list, list) {
-		ss->sock->ops->shutdown(ss->sock, SHUT_RDWR);
-		sock_release(ss->sock);
-		list_del(&ss->list);
-		kfree(ss);
-	}
 	for (i = 0; i < nthreads; i++) {
 		worker = &worker_threads[i];
 		/* don't need to lock here */
 		list_for_each_entry_safe(c, n, &worker->list, list) {
-			if (IS_UDP(c->transport))
-				mc_conn_cleanup(c);
-			else
+			if (IS_UDP(c->transport)) {
+				c->sock->ops->shutdown(c->sock, SHUT_RDWR);
+				sock_release(c->sock);
+			} else
 				mc_conn_close(c);
 			mc_conn_put(c);
 		}

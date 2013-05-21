@@ -398,7 +398,7 @@ void mc_append_stats(const char *key, const u16 klen, const char *val,
 
 void mc_stat_settings(add_stat_fn f, void *c)
 {
-	APPEND_STAT("maxbytes", "%u", (unsigned int)settings.maxbytes);
+	APPEND_STAT("maxbytes", "%llu", settings.maxbytes);
 	APPEND_STAT("maxconns", "%d", settings.maxconns);
 	APPEND_STAT("tcpport", "%d", settings.port);
 	APPEND_STAT("udpport", "%d", settings.udpport);

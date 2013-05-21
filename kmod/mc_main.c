@@ -196,13 +196,9 @@ static int __kmemcache_bh_init(void *unused)
 		PRINTK("init hashtable error\n");
 		goto del_slabs;
 	}
-	if ((ret = dispatcher_init())) {
-		PRINTK("init dispatcher error\n");
-		goto del_hash;
-	}
 	if ((ret = workers_init())) {
 		PRINTK("init workers error\n");
-		goto del_dispatcher;
+		goto del_hash;
 	}
 	if ((ret = start_hash_thread())) {
 		PRINTK("init hashtable kthread error\n");
@@ -216,21 +212,21 @@ static int __kmemcache_bh_init(void *unused)
 		PRINTK("init timer error\n");
 		goto del_slab_thread;
 	}
-	if ((ret = server_init())) {
-		PRINTK("init server socket error\n");
+	if ((ret = dispatcher_init())) {
+		PRINTK("init dispatcher error\n");
 		goto del_timer;
 	}
 	if ((ret = oom_init())) {
 		PRINTK("init oom error\n");
-		goto del_server;
+		goto del_dispatcher;
 	}
 
 	cache_bh_status = 1;
 	PRINTK("start server success\n");
 	return 0;
 
-del_server:
-	server_exit();
+del_dispatcher:
+	dispatcher_exit();
 del_timer:
 	timer_exit();
 del_slab_thread:
@@ -240,8 +236,6 @@ del_hash_thread:
 	stop_hash_thread();
 del_workers:
 	workers_exit();
-del_dispatcher:
-	dispatcher_exit();
 del_hash:
 	hash_exit();
 del_slabs:
@@ -284,6 +278,8 @@ static int __init kmemcache_init(void)
 {
 	int ret = 0;
 
+	msg_init();
+
 	ret = connector_init();
 	if (ret) {
 		PRINTK("init connector error\n");
@@ -306,12 +302,11 @@ out:
 static void __exit kmemcache_exit(void)
 {
 	if (cache_bh_status) {
-		server_exit();
+		dispatcher_exit();
 		timer_exit();
 		stop_slab_thread();
 		stop_hash_thread();
 		workers_exit();
-		dispatcher_exit();
 		hash_exit();
 		slabs_exit();
 		stats_exit();

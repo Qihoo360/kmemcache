@@ -18,7 +18,7 @@ struct kmem_cache *conn_cachep;
 
 static inline conn* _conn_new(void)
 {
-	return kmem_cache_alloc(conn_cachep, GFP_KERNEL);
+	return kmem_cache_zalloc(conn_cachep, GFP_KERNEL);
 }
 
 static inline void _conn_free(void *objp)
@@ -76,8 +76,6 @@ conn* mc_conn_new(struct conn_req *rq)
 		c = ERR_PTR(-ENOMEM);
 		goto out;
 	}
-
-	memset(c, 0, sizeof(*c));
 
 	c->cn_rsize	= rq->rsize;
 	c->cn_wsize	= DATA_BUF_SIZE;
@@ -147,8 +145,9 @@ out:
 void mc_conn_close(conn *c)
 {
 	PVERBOSE(1, "<%p connection closed\n", c);
-	set_bit(EV_DEAD, &c->event);
+
 	if (!IS_UDP(c->transport)) {
+		set_bit(EV_DEAD, &c->event);
 		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
 		sock_release(c->sock);
 		c->sock = NULL;
@@ -244,6 +243,11 @@ int mc_send(struct socket *sock, void *buf, size_t len)
 	};
 
 	return kernel_sendmsg(sock, &msg, &iov, 1, len);
+}
+
+int mc_s2clog(struct socket *sock, int type)
+{
+	return mc_send(sock, s2c_msg[type], s2c_len[type]);
 }
 
 int mc_sendmsg(struct socket *sock, struct msghdr *msg)

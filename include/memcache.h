@@ -42,7 +42,7 @@ typedef struct {
 	__s32 backlog;
 
 	__s32 verbose;
-	__s32 maxbytes;
+	__u64 maxbytes;
 	__s32 maxconns;
 	__s32 num_threads;
 	__s32 num_threads_per_udp;
@@ -88,7 +88,7 @@ struct settings {
 	__s32 backlog;
 
 	__s32 verbose;
-	__s32 maxbytes;
+	__u64 maxbytes;
 	__s32 maxconns;
 	__s32 num_threads;
 	__s32 num_threads_per_udp;

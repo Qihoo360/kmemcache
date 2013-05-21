@@ -6,9 +6,6 @@ CONFIG_SASL=n
 # connector request cache
 CONFIG_CN_CACHE=n
 
-# all listen sockets share a thread 
-CONFIG_SINGLE_DISPATCHER=n
-
 # out of memory managment
 CONFIG_OOM=y
 
@@ -24,10 +21,6 @@ EXTRA_CFLAGS += -I$(PWD)/../include
 
 ifeq ($(CONFIG_CN_CACHE),y)
   EXTRA_CFLAGS += -DCONFIG_CN_CACHE
-endif
-
-ifeq ($(CONFIG_SINGLE_DISPATCHER),y)
-  EXTRA_CFLAGS += -DCONFIG_SINGLE_DISPATCHER
 endif
 
 ifeq ($(CONFIG_OOM),y)
@@ -55,7 +48,8 @@ kmemcache-y :=	mc_strops.o	\
 		mc_proto_txt.o	\
 		mc_proto.o	\
 		mc_connector.o	\
-		mc_uparam.o
+		mc_uparam.o	\
+		mc_msg.o
 
 kmemcache-$(CONFIG_SASL)	+= mc_sasl.o
 kmemcache-$(CONFIG_OOM)		+= mc_oom.o

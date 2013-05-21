@@ -6,6 +6,7 @@
 #include <linux/workqueue.h>
 
 #include "config.h"
+#include "mc_msg.h"
 #include "memcache.h"
 #include "sasl.h"
 #include "connector.h"
