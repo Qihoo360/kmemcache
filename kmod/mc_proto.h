@@ -29,6 +29,12 @@ static inline void _suffix_free(void *objp)
 }
 
 void	mc_out_string(conn *c, const char *str);
+#define OSTRING(c, type)	\
+	do {			\
+		mc_out_string((c), s2c_msg[(type)]);\
+	} while (0)
+
+		//mc_out_string((c), s2c_msg[(type)], s2c_len[(type)]);
 delta_result_t mc_do_add_delta(conn *c, const char *key, size_t nkey, u8 incr,
 			       s64 delta, char *buf, u64 *cas, u32 hv);
 store_item_t mc_do_store_item(item *item, int comm, conn* c, u32 hv);

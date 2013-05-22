@@ -544,7 +544,7 @@ void write_and_free(conn *c, struct buffer *buf, int bytes)
 		conn_set_state(c, conn_write);
 		c->write_and_go = conn_new_cmd;
 	} else {
-		mc_out_string(c, "SERVER_ERROR out of memory writing stats");
+		OSTRING(c, MSG_SER_OOM_STAT);
 	}
 }
 
@@ -775,7 +775,7 @@ static int try_read_command(conn *c)
 			c->cn_msgused = 0;
 			c->cn_iovused = 0;
 			if (mc_add_msghdr(c)) {
-				mc_out_string(c, "SERVER_ERROR out of memory");
+				OSTRING(c, MSG_SER_OOM);
 				return -EFAULT;
 			}
 
@@ -855,7 +855,7 @@ static try_read_result_t try_read_udp(conn *c)
 
 		/* If this is a multi-packet request, drop it. */
 		if (buf[4] != 0 || buf[5] != 1) {
-			mc_out_string(c, "SERVER_ERROR multi-packet request not supported");
+			OSTRING(c, MSG_SER_MUL_PACK);
 			return READ_NO_DATA_RECEIVED;
 		}
 
@@ -905,7 +905,7 @@ static try_read_result_t try_read_network(conn *c)
 			if (res) {
 				PVERBOSE(0, "couldn't realloc input buffer\n");
 				c->cn_rbytes = 0; /* ignore what we read */
-				mc_out_string(c, "SERVER_ERROR out of memory reading request");
+				OSTRING(c, MSG_SER_OOM_RREQ);
 				c->write_and_go = conn_closing;
 				return READ_MEMORY_ERROR;
 			}

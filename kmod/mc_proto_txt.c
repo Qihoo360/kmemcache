@@ -101,10 +101,10 @@ static void txt_stats_detail(conn *c, const char *command)
 {
 	if (!strcmp(command, "on")) {
 		settings.detail_enabled = 1;
-		mc_out_string(c, "OK");
+		OSTRING(c, MSG_TXT_OK);
 	} else if (!strcmp(command, "off")) {
 		settings.detail_enabled = 0;
-		mc_out_string(c, "OK");
+		OSTRING(c, MSG_TXT_OK);
 	} else if (!strcmp(command, "dump")) {
 		int ret;
 		DECLEARE_BUFFER(buf);
@@ -112,7 +112,7 @@ static void txt_stats_detail(conn *c, const char *command)
 		ret = mc_stats_prefix_dump(&buf);
 		write_and_free(c, &buf, ret);
 	} else {
-		mc_out_string(c, "CLIENT_ERROR usage: stats detail on|off|dump");
+		OSTRING(c, MSG_TXT_USG_STAT);
 	}
 }
 
@@ -121,7 +121,7 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 	const char *subcommand = tokens[SUBCOMMAND_TOKEN].value;
 
 	if (ntokens < 2) {
-		mc_out_string(c, "CLIENT_ERROR bad command line");
+		OSTRING(c, MSG_TXT_BAD_CMDLIN);
 		return;
 	}
 
@@ -130,7 +130,7 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 		(void)mc_get_stats(NULL, 0, &mc_append_stats, c);
 	} else if (!strcmp(subcommand, "reset")) {
 		mc_stats_reset();
-		mc_out_string(c, "RESET");
+		OSTRING(c, MSG_TXT_RESET);
 		return ;
 	} else if (!strcmp(subcommand, "detail")) {
 		/* NOTE: how to tackle detail with binary? */
@@ -147,18 +147,18 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 		DECLEARE_BUFFER(buf);
 
 		if (ntokens < 5) {
-			mc_out_string(c, "CLIENT_ERROR bad command line");
+			OSTRING(c, MSG_TXT_BAD_CMDLIN);
 			return;
 		}
 
 		if (safe_strtoul(tokens[2].value, &id) ||
 		    safe_strtoul(tokens[3].value, &limit)) {
-			mc_out_string(c, "CLIENT_ERROR bad command line format");
+			OSTRING(c, MSG_TXT_BAD_CMDFMT);
 			return;
 		}
 
 		if (id >= POWER_LARGEST) {
-			mc_out_string(c, "CLIENT_ERROR Illegal slab id");
+			OSTRING(c, MSG_TXT_ILL_SLAB);
 			return;
 		}
 
@@ -170,13 +170,13 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 		 * is invalid. query the engine and see. */
 		if (!mc_get_stats(subcommand, strlen(subcommand), &mc_append_stats, c)) {
 			if (c->stats.flags == BUF_NEGATIVE) {
-				mc_out_string(c, "SERVER_ERROR out of memory writing stats");
+				OSTRING(c, MSG_SER_OOM_STAT);
 			} else {
 				write_and_free(c, &c->stats, c->offset);
 				c->stats.flags = BUF_NEGATIVE;
 			}
 		} else {
-			mc_out_string(c, "ERROR");
+			OSTRING(c, MSG_TXT_ERROR);
 		}
 		return ;
 	}
@@ -185,7 +185,7 @@ static void txt_stat(conn *c, token_t *tokens, size_t ntokens)
 	mc_append_stats(NULL, 0, NULL, 0, c);
 
 	if (c->stats.flags == BUF_NEGATIVE) {
-		mc_out_string(c, "SERVER_ERROR out of memory writing stats");
+		OSTRING(c, MSG_SER_OOM_STAT);
 	} else {
 		write_and_free(c, &c->stats, c->offset);
 		c->stats.flags = BUF_NEGATIVE;
@@ -208,7 +208,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 			nkey = key_token->length;
 
 			if(nkey > KEY_MAX_LEN) {
-				mc_out_string(c, "CLIENT_ERROR bad command line format");
+				OSTRING(c, MSG_TXT_BAD_CMDFMT);
 				return;
 			}
 
@@ -247,7 +247,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 
 					suffix = _suffix_new();
 					if (suffix == NULL) {
-						mc_out_string(c, "SERVER_ERROR out of memory making CAS suffix");
+						OSTRING(c, MSG_SER_OOM_CAS);
 						mc_item_remove(c->who, it);
 						return;
 					}
@@ -320,7 +320,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 	if (key_token->value != NULL ||
 	    mc_add_iov(c, "END\r\n", 5) ||
 	    (IS_UDP(c->transport) && mc_build_udp_headers(c))) {
-		mc_out_string(c, "SERVER_ERROR out of memory writing get response");
+		OSTRING(c, MSG_SER_OOM_WRES);
 	} else {
 		conn_set_state(c, conn_mwrite);
 		c->cn_msgcurr = 0;
@@ -344,7 +344,7 @@ static void txt_update(conn *c, token_t *tokens, size_t ntokens, int comm, int h
 	set_noreply_maybe(c, tokens, ntokens);
 
 	if (tokens[KEY_TOKEN].length > KEY_MAX_LEN) {
-		mc_out_string(c, "CLIENT_ERROR bad command line format");
+		OSTRING(c, MSG_TXT_BAD_CMDFMT);
 		return;
 	}
 
@@ -354,7 +354,7 @@ static void txt_update(conn *c, token_t *tokens, size_t ntokens, int comm, int h
 	if (safe_strtoul(tokens[2].value, (u32 *)&flags) ||
 	    safe_strtol(tokens[3].value, &exptime_int) ||
 	    safe_strtol(tokens[4].value, (s32 *)&vlen)) {
-		mc_out_string(c, "CLIENT_ERROR bad command line format");
+		OSTRING(c, MSG_TXT_BAD_CMDFMT);
 		return;
 	}
 
@@ -372,14 +372,14 @@ static void txt_update(conn *c, token_t *tokens, size_t ntokens, int comm, int h
 	// does cas value exist?
 	if (handle_cas) {
 		if (safe_strtoull(tokens[5].value, &req_cas_id)) {
-			mc_out_string(c, "CLIENT_ERROR bad command line format");
-			    return;
+			OSTRING(c, MSG_TXT_BAD_CMDFMT);
+			return;
 		}
 	}
 
 	vlen += 2;
 	if (vlen < 0 || vlen - 2 < 0) {
-		mc_out_string(c, "CLIENT_ERROR bad command line format");
+		OSTRING(c, MSG_TXT_BAD_CMDFMT);
 		return;
 	}
 
@@ -391,9 +391,9 @@ static void txt_update(conn *c, token_t *tokens, size_t ntokens, int comm, int h
 
 	if (it == 0) {
 		if (!mc_item_size_ok(nkey, flags, vlen)) {
-			mc_out_string(c, "SERVER_ERROR object too large for cache");
+			OSTRING(c, MSG_SER_LAROBJ);
 		} else {
-			mc_out_string(c, "SERVER_ERROR out of memory storing object");
+			OSTRING(c, MSG_SER_OOM_SOBJ);
 		}
 		/* swallow the data line */
 		c->write_and_go = conn_swallow;
@@ -430,7 +430,7 @@ static void txt_touch(conn *c, token_t *tokens, size_t ntokens)
 	set_noreply_maybe(c, tokens, ntokens);
 
 	if (tokens[KEY_TOKEN].length > KEY_MAX_LEN) {
-		mc_out_string(c, "CLIENT_ERROR bad command line format");
+		OSTRING(c, MSG_TXT_BAD_CMDFMT);
 		return;
 	}
 
@@ -438,7 +438,7 @@ static void txt_touch(conn *c, token_t *tokens, size_t ntokens)
 	nkey = tokens[KEY_TOKEN].length;
 
 	if (safe_strtol(tokens[2].value, &exptime_int)) {
-		mc_out_string(c, "CLIENT_ERROR invalid exptime argument");
+		OSTRING(c, MSG_TXT_ILL_TIME);
 		return;
 	}
 
@@ -450,15 +450,14 @@ static void txt_touch(conn *c, token_t *tokens, size_t ntokens)
 		c->who->stats.slab_stats[it->slabs_clsid].touch_hits++;
 		spin_unlock(&c->who->stats.lock);
 
-		mc_out_string(c, "TOUCHED");
+		OSTRING(c, MSG_TXT_TOUCHED);
 		mc_item_remove(c->who, it);
 	} else {
 		spin_lock(&c->who->stats.lock);
 		c->who->stats.touch_cmds++;
 		c->who->stats.touch_misses++;
 		spin_unlock(&c->who->stats.lock);
-
-		mc_out_string(c, "NOT_FOUND");
+		OSTRING(c, MSG_TXT_NFOUND);
 	}
 }
 
@@ -472,7 +471,7 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 	set_noreply_maybe(c, tokens, ntokens);
 
 	if (tokens[KEY_TOKEN].length > KEY_MAX_LEN) {
-		mc_out_string(c, "CLIENT_ERROR bad command line format");
+		OSTRING(c, MSG_TXT_BAD_CMDFMT);
 		return;
 	}
 
@@ -480,7 +479,7 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 	nkey = tokens[KEY_TOKEN].length;
 
 	if (safe_strtoull(tokens[2].value, &delta)) {
-		mc_out_string(c, "CLIENT_ERROR invalid numeric delta argument");
+		OSTRING(c, MSG_TXT_ILL_NUM);
 		return;
 	}
 
@@ -489,10 +488,10 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 		mc_out_string(c, temp);
 		break;
 	case NON_NUMERIC:
-		mc_out_string(c, "CLIENT_ERROR cannot increment or decrement non-numeric value");
+		OSTRING(c, MSG_TXT_CRE_VAL);
 		break;
 	case EOM:
-		mc_out_string(c, "SERVER_ERROR out of memory");
+		OSTRING(c, MSG_SER_OOM);
 		break;
 	case DELTA_ITEM_NOT_FOUND:
 		spin_lock(&c->who->stats.lock);
@@ -503,7 +502,7 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 		}
 		spin_unlock(&c->who->stats.lock);
 
-		mc_out_string(c, "NOT_FOUND");
+		OSTRING(c, MSG_TXT_NFOUND);
 		break;
 	case DELTA_ITEM_CAS_MISMATCH:
 		/* Should never get here */
@@ -523,8 +522,7 @@ static void txt_delete(conn *c, token_t *tokens, size_t ntokens)
 		int valid = (ntokens == 4 && (hold_is_zero || sets_noreply))
 			 || (ntokens == 5 && hold_is_zero && sets_noreply);
 		if (!valid) {
-			mc_out_string(c, "CLIENT_ERROR bad command line format.  "
-				      "Usage: delete <key> [noreply]");
+			OSTRING(c, MSG_TXT_BAD_CMDUSG);
 			return;
 		}
 	}
@@ -533,7 +531,7 @@ static void txt_delete(conn *c, token_t *tokens, size_t ntokens)
 	nkey = tokens[KEY_TOKEN].length;
 
 	if(nkey > KEY_MAX_LEN) {
-		mc_out_string(c, "CLIENT_ERROR bad command line format");
+		OSTRING(c, MSG_TXT_BAD_CMDFMT);
 		return;
 	}
 
@@ -549,13 +547,13 @@ static void txt_delete(conn *c, token_t *tokens, size_t ntokens)
 
 		mc_item_unlink(c->who,it);
 		mc_item_remove(c->who, it);      /* release our reference */
-		mc_out_string(c, "DELETED");
+		OSTRING(c, MSG_TXT_DELETED);
 	} else {
 		spin_lock(&c->who->stats.lock);
 		c->who->stats.delete_misses++;
 		spin_unlock(&c->who->stats.lock);
 
-		mc_out_string(c, "NOT_FOUND");
+		OSTRING(c, MSG_TXT_NFOUND);
 	}
 }
 
@@ -567,7 +565,7 @@ static void txt_verbosity(conn *c, token_t *tokens, size_t ntokens)
 
 	level = simple_strtoul(tokens[1].value, NULL, 10);
 	settings.verbose = level > MAX_VERBOSITY_LEVEL ? MAX_VERBOSITY_LEVEL : level;
-	mc_out_string(c, "OK");
+	OSTRING(c, MSG_TXT_OK);
 	return;
 }
 
@@ -583,10 +581,10 @@ static void txt_slabs_automove(conn *c, token_t *tokens, size_t ntokens)
 	} else if (level == 1 || level == 2) {
 		settings.slab_automove = level;
 	} else {
-		mc_out_string(c, "ERROR");
+		OSTRING(c, MSG_TXT_ERROR);
 		return;
 	}
-	mc_out_string(c, "OK");
+	OSTRING(c, MSG_TXT_OK);
 	return;
 }
 
@@ -606,7 +604,7 @@ static void txt_dispatch_command(conn *c, char *command)
 	c->cn_msgused = 0;
 	c->cn_iovused = 0;
 	if (mc_add_msghdr(c)) {
-		mc_out_string(c, "SERVER_ERROR out of memory preparing response");
+		OSTRING(c, MSG_SER_OOM_PRES);
 		return;
 	}
 
@@ -666,12 +664,12 @@ static void txt_dispatch_command(conn *c, char *command)
 		if(ntokens == (c->noreply ? 3 : 2)) {
 		    settings.oldest_live = current_time - 1;
 		    mc_item_flush_expired();
-		    mc_out_string(c, "OK");
+		    OSTRING(c, MSG_TXT_OK);
 		    return;
 		}
 
 		if (safe_strtoul(tokens[1].value, (u32 *)&exptime)) {
-			mc_out_string(c, "CLIENT_ERROR bad command line format");
+			OSTRING(c, MSG_TXT_BAD_CMDFMT);
 			return;
 		}
 
@@ -686,12 +684,12 @@ static void txt_dispatch_command(conn *c, char *command)
 		else /* exptime == 0 */
 			settings.oldest_live = current_time - 1;
 		mc_item_flush_expired();
-		mc_out_string(c, "OK");
+		OSTRING(c, MSG_TXT_OK);
 		return;
 
 	} else if (ntokens == 2 && (strcmp(tokens[COMMAND_TOKEN].value, "version") == 0)) {
 
-		mc_out_string(c, "VERSION " VERSION);
+		OSTRING(c, MSG_SYS_VERSION);
 
 	} else if (ntokens == 2 && (strcmp(tokens[COMMAND_TOKEN].value, "quit") == 0)) {
 
@@ -702,7 +700,7 @@ static void txt_dispatch_command(conn *c, char *command)
 		if (settings.shutdown_command) {
 			conn_set_state(c, conn_closing);
 		} else {
-			mc_out_string(c, "ERROR: shutdown not enabled");
+			OSTRING(c, MSG_SYS_SHUT);
 		}
 
 	} else if (ntokens > 1 && strcmp(tokens[COMMAND_TOKEN].value, "slabs") == 0) {
@@ -710,44 +708,44 @@ static void txt_dispatch_command(conn *c, char *command)
 			int src, dst, rv;
 
 			if (settings.slab_reassign == false) {
-				mc_out_string(c, "CLIENT_ERROR slab reassignment disabled");
+				OSTRING(c, MSG_TXT_SLAB_DIS);
 				return;
 			}
 
 			if (safe_strtol(tokens[2].value, &src) ||
 			    safe_strtol(tokens[3].value, &dst)) {
-				mc_out_string(c, "CLIENT_ERROR bad command line format");
+				OSTRING(c, MSG_TXT_BAD_CMDFMT);
 				return;
 			}
 
 			rv = mc_slabs_reassign(src, dst);
 			switch (rv) {
 			case REASSIGN_OK:
-				mc_out_string(c, "OK");
+				OSTRING(c, MSG_TXT_OK);
 				break;
 			case REASSIGN_RUNNING:
-				mc_out_string(c, "BUSY currently processing reassign request");
+				OSTRING(c, MSG_SYS_BUSY);
 				break;
 			case REASSIGN_BADCLASS:
-				mc_out_string(c, "BADCLASS invalid src or dst class id");
+				OSTRING(c, MSG_SYS_BADCLS);
 				break;
 			case REASSIGN_NOSPACE:
-				mc_out_string(c, "NOSPARE source class has no spare pages");
+				OSTRING(c, MSG_SYS_NOSPACE);
 				break;
 			case REASSIGN_SRC_DST_SAME:
-				mc_out_string(c, "SAME src and dst class are identical");
+				OSTRING(c, MSG_SYS_SAMECLS);
 				break;
 			}
 			return;
 		} else if (ntokens == 4 && !strcmp(tokens[COMMAND_TOKEN + 1].value, "automove")) {
 			txt_slabs_automove(c, tokens, ntokens);
 		} else {
-			mc_out_string(c, "ERROR");
+			OSTRING(c, MSG_TXT_ERROR);
 		}
 	} else if ((ntokens == 3 || ntokens == 4) && (strcmp(tokens[COMMAND_TOKEN].value, "verbosity") == 0)) {
 		txt_verbosity(c, tokens, ntokens);
 	} else {
-		mc_out_string(c, "ERROR");
+		OSTRING(c, MSG_TXT_ERROR);
 	}
 	return;
 }
@@ -768,25 +766,25 @@ static void txt_complete_nread(conn *c)
 	spin_unlock(&c->who->stats.lock);
 
 	if (strncmp(ITEM_data(it) + it->nbytes - 2, "\r\n", 2)) {
-		mc_out_string(c, "CLIENT_ERROR bad data chunk");
+		OSTRING(c, MSG_TXT_BAD_CHUNK);
 	} else {
 		ret = mc_store_item(c->who, it, comm, c);
 
 		switch (ret) {
 		case STORED:
-			mc_out_string(c, "STORED");
+			OSTRING(c, MSG_TXT_STORED);
 			break;
 		case EXISTS:
-			mc_out_string(c, "EXISTS");
+			OSTRING(c, MSG_TXT_EXISTS);
 			break;
 		case NOT_FOUND:
-			mc_out_string(c, "NOT_FOUND");
+			OSTRING(c, MSG_TXT_NFOUND);
 			break;
 		case NOT_STORED:
-			mc_out_string(c, "NOT_STORED");
+			OSTRING(c, MSG_TXT_NSTORED);
 			break;
 		default:
-			mc_out_string(c, "SERVER_ERROR Unhandled storage type.");
+			OSTRING(c, MSG_SER_STYPE);
 			break;
 		}
 	}

@@ -642,9 +642,10 @@ out:
 void workers_exit(void)
 {
 	int i;
-	conn *c, *n;
+	conn *c, *n, *t;
 	int nthreads = settings.num_threads;
 	struct worker_thread *worker;
+	LIST_HEAD(head);
 
 	for (i = 0; i < nthreads; i++) {
 		worker = &worker_threads[i];
@@ -664,12 +665,24 @@ void workers_exit(void)
 		/* don't need to lock here */
 		list_for_each_entry_safe(c, n, &worker->list, list) {
 			if (IS_UDP(c->transport)) {
-				c->sock->ops->shutdown(c->sock, SHUT_RDWR);
-				sock_release(c->sock);
-			} else
-				mc_conn_close(c);
+				list_for_each_entry(t, &head, list) {
+					if (t->sock == c->sock)
+						break;
+				}
+				if (&t->list == &head) {
+					list_del(&c->list);
+					list_add_tail(&c->list, &head);
+					continue;
+				}
+			}
+			mc_conn_close(c);
 			mc_conn_put(c);
 		}
+	}
+	list_for_each_entry_safe(c, n, &head, list) {
+		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
+		sock_release(c->sock);
+		mc_conn_put(c);
 	}
 
 	kfree(worker_threads);

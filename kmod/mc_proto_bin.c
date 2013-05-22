@@ -14,7 +14,7 @@ static void bin_add_header(conn *c, u16 err, u8 hdr_len,
 	c->cn_iovused = 0;
 	if (mc_add_msghdr(c)) {
 		/* XXX:  out_string is inappropriate here */
-		mc_out_string(c, "SERVER_ERROR out of memory");
+		OSTRING(c, MSG_SER_OOM);
 		return;
 	}
 
@@ -49,45 +49,55 @@ static void bin_add_header(conn *c, u16 err, u8 hdr_len,
 
 static void bin_write_error(conn *c, protocol_binary_response_status err, int swallow)
 {
-	const char *errstr = "Unknown error";
-	size_t len;
+	const char *errstr = s2c_msg[MSG_BIN_UKNW];
+	size_t len = s2c_len[MSG_BIN_UKNW];
 
 	switch (err) {
 	case PROTOCOL_BINARY_RESPONSE_ENOMEM:
-		errstr = "Out of memory";
+		errstr = s2c_msg[MSG_BIN_OOM];
+		len = s2c_len[MSG_BIN_OOM];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND:
-		errstr = "Unknown command";
+		errstr = s2c_msg[MSG_BIN_NCMD];
+		len = s2c_len[MSG_BIN_NCMD];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
-		errstr = "Not found";
+		errstr = s2c_msg[MSG_BIN_NFD];
+		len = s2c_len[MSG_BIN_NFD];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_EINVAL:
-		errstr = "Invalid arguments";
+		errstr = s2c_msg[MSG_BIN_NARG];
+		len = s2c_len[MSG_BIN_NARG];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS:
-		errstr = "Data exists for key.";
+		errstr = s2c_msg[MSG_BIN_XKEY];
+		len = s2c_len[MSG_BIN_XKEY];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_E2BIG:
-		errstr = "Too large.";
+		errstr = s2c_msg[MSG_BIN_LARG];
+		len = s2c_len[MSG_BIN_LARG];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL:
-		errstr = "Non-numeric server-side value for incr or decr";
+		errstr = s2c_msg[MSG_BIN_NNUM];
+		len = s2c_len[MSG_BIN_NNUM];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_NOT_STORED:
-		errstr = "Not stored.";
+		errstr = s2c_msg[MSG_BIN_NSTO];
+		len = s2c_len[MSG_BIN_NSTO];
 		break;
 	case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:
-		errstr = "Auth failure.";
+		errstr = s2c_msg[MSG_BIN_AUTH];
+		len = s2c_len[MSG_BIN_AUTH];
 		break;
 	default:
-		errstr = "UNHANDLED ERROR";
+		errstr = s2c_msg[MSG_BIN_UHND];
+		len = s2c_len[MSG_BIN_UHND];
 		PRINTK(">%s UNHANDLED ERROR: %d\n", current->comm, err);
+		break;
 	}
 
 	PVERBOSE(1, ">%s Writing an error: %s\n", current->comm, errstr);
 
-	len = strlen(errstr);
 	bin_add_header(c, err, 0, 0, len);
 	if (len > 0) {
 		mc_add_iov(c, errstr, len);
@@ -368,7 +378,7 @@ static void bin_stat(conn *c)
 				return ;
 			} else {
 				BUFFER_PTR(&buf, dump_buf);
-				mc_append_stats("detailed", strlen("detailed"),
+				mc_append_stats("detailed", 8,
 					        dump_buf, ret, c);
 				free_buffer(&buf);
 			}
@@ -519,7 +529,7 @@ static void bin_complete_sasl_auth(conn *c)
 
 	switch(result) {
 	case SASL_OK:
-		bin_write_response(c, "Authenticated", 0, 0, strlen("Authenticated"));
+		bin_write_response(c, "Authenticated", 0, 0, 13);
 		spin_lock(&c->who->stats.lock);
 		c->who->stats.auth_cmds++;
 		spin_unlock(&c->who->stats.lock);
