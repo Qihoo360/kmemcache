@@ -485,7 +485,7 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 
 	switch(mc_add_delta(c->who, c, key, nkey, incr, delta, temp, NULL)) {
 	case OK:
-		mc_out_string(c, temp);
+		mc_out_string(c, temp, strlen(temp));
 		break;
 	case NON_NUMERIC:
 		OSTRING(c, MSG_TXT_CRE_VAL);

@@ -24,6 +24,7 @@ char* s2c_msg[MSG_MAX] __read_mostly = {
 	MSG_ENTRY(MSG_SER_MUL_PACK,	"SERVER_ERROR multi-packet request not supported"),
 	MSG_ENTRY(MSG_SER_LAROBJ,	"SERVER_ERROR object too large for cache"),
 	MSG_ENTRY(MSG_SER_STYPE,	"SERVER_ERROR Unhandled storage type."),
+	MSG_ENTRY(MSG_SER_LNGOUT,	"SERVER_ERROR output line too long"),
 
 	MSG_ENTRY(MSG_BIN_OOM,		"Out of memory"),
 	MSG_ENTRY(MSG_BIN_NCMD,		"Unknown command"),

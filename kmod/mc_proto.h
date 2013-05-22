@@ -28,10 +28,12 @@ static inline void _suffix_free(void *objp)
 	kmem_cache_free(suffix_cachep, objp);
 }
 
-void	mc_out_string(conn *c, const char *str);
-#define OSTRING(c, type)	\
-	do {			\
-		mc_out_string((c), s2c_msg[(type)]);\
+void	mc_out_string(conn *c, const char *str, size_t len);
+#define OSTRING(c, type)			\
+	do {					\
+		mc_out_string((c),		\
+			      s2c_msg[(type)],	\
+			      s2c_len[(type)]);	\
 	} while (0)
 
 		//mc_out_string((c), s2c_msg[(type)], s2c_len[(type)]);

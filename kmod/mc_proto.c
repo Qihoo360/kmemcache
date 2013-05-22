@@ -499,10 +499,8 @@ void mc_server_stats(add_stat_fn f, conn *c)
 	kfree(thread_stats);
 }
 
-void mc_out_string(conn *c, const char *str)
+void mc_out_string(conn *c, const char *str, size_t len)
 {
-	size_t len;
-
 	if (c->noreply) {
 		PVERBOSE(1, ">%p NOREPLY %s\n", c, str);
 		c->noreply = 0;
@@ -518,11 +516,10 @@ void mc_out_string(conn *c, const char *str)
 	c->cn_iovused = 0;
 	mc_add_msghdr(c);
 
-	len = strlen(str);
 	if (len + 2 > c->cn_wsize) {
 		/* ought to be always enough. just fail for simplicity */
-		str = "SERVER_ERROR output line too long";
-		len = strlen(str);
+		str = s2c_msg[MSG_SER_LNGOUT];
+		len = s2c_len[MSG_SER_LNGOUT];
 	}
 
 	memcpy(c->cn_wbuf, str, len);
