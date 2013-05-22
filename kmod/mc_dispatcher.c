@@ -469,7 +469,7 @@ out:
 	return ret;
 
 set_opt_err:
-	PRINTK("set server socket option error\n");
+	PRINTK("set server socket option (level=%d, name=%d) error\n", level, name);
 release_sock:
 	sock_release(ss->sock);
 free_sock:

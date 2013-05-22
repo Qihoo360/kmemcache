@@ -65,7 +65,7 @@ extern struct kmem_cache *lock_xchg_req_cachep;
 
 static inline void* new_conn_req(void)
 {
-	return kmem_cache_alloc(conn_req_cachep, GFP_KERNEL);
+	return kmem_cache_alloc(conn_req_cachep, GFP_ATOMIC);
 }
 
 static inline void free_conn_req(void *obj)

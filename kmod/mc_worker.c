@@ -541,11 +541,7 @@ put_con:
 int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 			 int rbuflen, net_transport_t transport)
 {
-#ifdef CONFIG_SINGLE_DISPATCHER
 	static int last = -1;
-#else
-	static atomic_t last = ATOMIC_INIT(-1);
-#endif
 
 	int ret = 0, tid;
 	struct conn_req *rq;
@@ -558,13 +554,8 @@ int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 		goto out;
 	}
 
-#ifdef CONFIG_SINGLE_DISPATCHER
 	tid = (last + 1) % settings.num_threads;
 	last= tid;
-#else
-	tid = atomic_inc_return(&last);
-	tid %= settings.num_threads;
-#endif
 	worker = &worker_threads[tid];
 
 	rq->state = state;
