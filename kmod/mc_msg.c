@@ -4,7 +4,6 @@
 
 char* s2c_msg[MSG_MAX] = {
 	"ERROR Too many open connections\r\n",
-	"",
 };
 
 u8 s2c_len[MSG_MAX];
