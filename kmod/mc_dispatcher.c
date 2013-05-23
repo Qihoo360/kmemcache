@@ -707,7 +707,7 @@ int dispatcher_init(void)
 	INIT_LIST_HEAD(&dsper.list);
 	spin_lock_init(&dsper.lock);
 
-	dsper.wq = create_singlethread_workqueue("kmcdspt");
+	dsper.wq = create_singlethread_workqueue("kmcmasterd");
 	if (!dsper.wq) {
 		PRINTK("create dispatcher kthread error\n");
 		ret = -ENOMEM;

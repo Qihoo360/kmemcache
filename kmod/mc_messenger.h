@@ -59,8 +59,9 @@ struct slistbuf {
 struct conn {
 	unsigned long event;
 	atomic_t nref;
+	int cpu;
+	struct worker_storage *who;
 	struct work_struct work;
-	struct worker_thread *who;
 	struct list_head list;
 
 	struct socket *sock;

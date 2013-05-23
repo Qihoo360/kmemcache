@@ -8,6 +8,7 @@
 #include <linux/list.h>
 #include <linux/net.h>
 #include <linux/poll.h>
+#include <linux/percpu.h>
 #include <asm/atomic.h>
 
 #include "mc.h"
@@ -16,9 +17,10 @@
 static atomic_t sync_workers = ATOMIC_INIT(0);
 static DECLARE_COMPLETION(sync_comp);
 
-#define BEGIN_WAIT_FOR_THREAD_REGISTRATION()			\
-	do {							\
-		atomic_set(&sync_workers, settings.num_threads);\
+#define BEGIN_WAIT_FOR_THREAD_REGISTRATION()	\
+	do {					\
+		atomic_set(&sync_workers,	\
+			   num_online_cpus());	\
 	} while (0)
 
 #define WAIT_FOR_THREAD_REGISTRATION()		\
@@ -35,7 +37,9 @@ static DECLARE_COMPLETION(sync_comp);
 struct kmem_cache *conn_req_cachep;
 struct kmem_cache *lock_xchg_req_cachep;
 
-static struct worker_thread *worker_threads;
+static int num_cpus __read_mostly;
+struct worker_storage *storage __percpu;
+struct workqueue_struct *slaved;
 
 static void mc_lock_xchg_work(struct work_struct *work);
 
@@ -94,7 +98,7 @@ static void item_lock_exit(void)
 	free_pages((unsigned long)item_locks, order);
 }
 
-void mc_item_lock(struct worker_thread *worker, u32 hv)
+static void mc_item_lock(struct worker_storage *worker, u32 hv)
 {
 	int lock_type = worker->lock_type;
 
@@ -106,7 +110,7 @@ void mc_item_lock(struct worker_thread *worker, u32 hv)
 	}
 }
 
-void mc_item_unlock(struct worker_thread *worker, u32 hv)
+static void mc_item_unlock(struct worker_storage *worker, u32 hv)
 {
 	int lock_type = worker->lock_type;
 
@@ -155,31 +159,31 @@ void mc_item_unlock_global(void)
 
 void mc_switch_item_lock_type(item_lock_t type)
 {
-	int i, ret = 0;
+	int cpu, ret = 0;
+	struct lock_xchg_req *rq;
 
 	BEGIN_WAIT_FOR_THREAD_REGISTRATION();
 
-	for (i = 0; i < settings.num_threads; i++) {
-		struct lock_xchg_req *rq = new_lock_xchg_req();
+	for_each_online_cpu(cpu) {
+renew:
+		rq = new_lock_xchg_req();
 		if (unlikely(!rq)) {
 			PRINTK("alloc new lock-xchg request error, "
 			       "this is a fatal problem.\n");
 			msleep(2000);
-			i--;
-			continue;
+			goto renew;
 		}
 
 		rq->type = type;
-		rq->who  = &worker_threads[i];
+		rq->who  = per_cpu_ptr(storage, cpu);
 		INIT_WORK(&rq->work, mc_lock_xchg_work);
 
-		ret = queue_work(worker_threads[i].wq, &rq->work);
+requeue:
+		ret = queue_work_on(cpu, slaved, &rq->work);
 		if (unlikely(!ret)) {
 			PRINTK("lock xchg work already in the workqueue\n");
-			free_lock_xchg_req(rq);
 			msleep(2000);
-			i--;
-			continue;
+			goto requeue;
 		}
 	}
 
@@ -207,7 +211,7 @@ item* mc_item_alloc(char *key, size_t nkey, int flags,
  * Get an item if it hasn't been marked as expired,
  * lazy-expiring as needed.
  */
-item* mc_item_get(struct worker_thread *worker,
+item* mc_item_get(struct worker_storage *worker,
 		  const char *key, const size_t nkey)
 {
 	item *it;
@@ -221,7 +225,7 @@ item* mc_item_get(struct worker_thread *worker,
 	return it;
 }
 
-item* mc_item_touch(struct worker_thread *worker,
+item* mc_item_touch(struct worker_storage *worker,
 		    const char *key, size_t nkey, u32 exptime)
 {
 	item *it;
@@ -238,7 +242,7 @@ item* mc_item_touch(struct worker_thread *worker,
 /**
  * Link an item into the LRU and hashtable.
  */
-int mc_item_link(struct worker_thread *worker, item *item)
+int mc_item_link(struct worker_storage *worker, item *item)
 {
 	int ret;
 	u32 hv;
@@ -255,7 +259,7 @@ int mc_item_link(struct worker_thread *worker, item *item)
  * Decrement the reference count on an item and
  * add it to the freelist if needed. 
  */
-void mc_item_remove(struct worker_thread *worker, item *item)
+void mc_item_remove(struct worker_storage *worker, item *item)
 {
 	u32 hv;
 
@@ -278,7 +282,7 @@ int mc_item_replace(item *old_it, item *new_it, u32 hv)
 /**
  * Unlink an item from the LRU and hashtable.
  */
-void mc_item_unlink(struct worker_thread *worker, item *item)
+void mc_item_unlink(struct worker_storage *worker, item *item)
 {
 	u32 hv;
 
@@ -291,7 +295,7 @@ void mc_item_unlink(struct worker_thread *worker, item *item)
 /**
  * Move an item to the back of the LRU queue.
  */
-void mc_item_update(struct worker_thread *worker, item *item)
+void mc_item_update(struct worker_storage *worker, item *item)
 {
 	u32 hv;
 
@@ -304,7 +308,7 @@ void mc_item_update(struct worker_thread *worker, item *item)
 /**
  * Do arithmetic on a numeric item value.
  */
-delta_result_t mc_add_delta(struct worker_thread *worker, conn *c,
+delta_result_t mc_add_delta(struct worker_storage *worker, conn *c,
 			    const char *key, size_t nkey,
 			    int incr, s64 delta, char *buf, u64 *cas)
 {
@@ -322,7 +326,7 @@ delta_result_t mc_add_delta(struct worker_thread *worker, conn *c,
 /**
  * Store an item in the cache (high level, obeys set/add/replace semantics)
  */
-store_item_t mc_store_item(struct worker_thread *worker, item *item,
+store_item_t mc_store_item(struct worker_storage *worker, item *item,
 			   int comm, conn *c)
 {
 	store_item_t ret;
@@ -401,7 +405,7 @@ void mc_threadlocal_stats_reset(void)
 
 	for (i = 0; i < settings.num_threads; ++i) {
 		struct thread_stats *sts =
-				&worker_threads[i].stats;
+				&storage[i].stats;
 		size_t size = sizeof(struct thread_stats)
 			      - ((char *)(&sts->get_cmds)
 			      - (char *)sts);
@@ -422,7 +426,7 @@ void mc_threadlocal_stats_aggregate(struct thread_stats *stats)
 
 	for (i = 0; i < settings.num_threads; ++i) {
 		struct thread_stats *sts =
-				&worker_threads[i].stats;
+				&storage[i].stats;
 		spin_lock(&sts->lock);
 
 		stats->get_cmds	     += sts->get_cmds;
@@ -541,11 +545,10 @@ put_con:
 int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 			 int rbuflen, net_transport_t transport)
 {
-	static int last = -1;
+	static int cpu = -1;
 
-	int ret = 0, tid;
+	int ret = 0;
 	struct conn_req *rq;
-	struct worker_thread *worker;
 
 	rq = new_conn_req();
 	if (unlikely(!rq)) {
@@ -554,18 +557,26 @@ int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 		goto out;
 	}
 
-	tid = (last + 1) % settings.num_threads;
-	last= tid;
-	worker = &worker_threads[tid];
+	/*
+find_cpu:
+	cpu = next_cpu(cpu, cpu_online_mask);
+	if (!cpu_online(cpu)) {
+		PRINTK("dispatch to cpu: %d not online\n", cpu);
+		goto find_cpu;
+	}
+	*/
+	cpu = get_cpu();
+	put_cpu();
 
+	rq->cpu = cpu;
 	rq->state = state;
 	rq->transport = transport;
 	rq->sock = sock;
 	rq->rsize = rbuflen;
-	rq->who	= worker;
+	rq->who = per_cpu_ptr(storage, rq->cpu);
 	INIT_WORK(&rq->work, mc_conn_new_work);
 
-	ret = queue_work(worker->wq, &rq->work);
+	ret = queue_work_on(cpu, slaved, &rq->work);
 	if (unlikely(!ret)) {
 		PRINTK("new conn work already in the workqueue\n");
 		ret = -EFAULT;
@@ -581,89 +592,81 @@ out:
 }
 
 /** 
- * create various worker kthreads.
+ * create slaved's workqueue & info storage.
  *
  * Returns 0 on success, error code other wise.
  */
 int workers_init(void)
 {
-	int i, ret = 0;
-	int nthreads = settings.num_threads;
-
-	if ((ret = item_lock_init(nthreads))) {
+	int cpu, ret = 0;
+	
+	num_cpus = num_possible_cpus();
+	if ((ret = item_lock_init(num_cpus))) {
 		PRINTK("init item locks error\n");
 		goto out;
 	}
 
-	worker_threads = kzalloc(nthreads * sizeof(struct worker_thread),
-				 GFP_KERNEL);
-	if (!worker_threads) {
-		PRINTK("alloc worker threads error\n");
+	storage = alloc_percpu(struct worker_storage);
+	if (!storage) {
+		PRINTK("alloc worker info storage error\n");
 		ret = -ENOMEM;
 		goto free_item_locks;
 	}
-	for (i = 0; i < nthreads; i++) {
-		char thread[TASK_COMM_LEN] = {0};
-		struct workqueue_struct *wq;
+	for_each_possible_cpu(cpu) {
+		struct worker_storage *stor;
 
-		sprintf(thread, "kmcworker%d", i);
-		wq = create_singlethread_workqueue(thread);
-		if (!wq) {
-			PRINTK("create worker kthread error\n");
-			ret = -ENOMEM;
-			goto rollback_workers;
-		}
-
-		worker_threads[i].wq = wq;
-		INIT_LIST_HEAD(&worker_threads[i].list);
-		spin_lock_init(&worker_threads[i].lock);
-		spin_lock_init(&worker_threads[i].stats.lock);
-		worker_threads[i].lock_type = ITEM_LOCK_GRANULAR;
+		stor = per_cpu_ptr(storage, cpu);
+		memset(stor, 0, sizeof(*stor));
+		INIT_LIST_HEAD(&stor->list);
+		spin_lock_init(&stor->lock);
+		spin_lock_init(&stor->stats.lock);
+		stor->lock_type = ITEM_LOCK_GRANULAR;
 	}
 
+	slaved = create_workqueue("kmcslaved");
+	if (!slaved) {
+		PRINTK("create worker thread error\n");
+		ret = -ENOMEM;
+		goto free_storage;
+	}
+
+out:
 	return 0;
 
-rollback_workers:
-	for (i--; i >= 0; i--) {
-		destroy_workqueue(worker_threads[i].wq);
-	}
-	kfree(worker_threads);
+free_storage:
+	free_percpu(storage);
 free_item_locks:
 	item_lock_exit();
-out:
-	return ret;
+	goto out;
 }
 
 /**
- * wait for all worker threads to drop requests.
+ * wait for all workers to drop requests.
  *
- * NOTE!!! udp socket links to the list of dispatcher
+ * NOTE!!! udp conns share the same struct socket
  */
 void workers_exit(void)
 {
-	int i;
+	int cpu;
 	conn *c, *n, *t;
-	int nthreads = settings.num_threads;
-	struct worker_thread *worker;
 	LIST_HEAD(head);
+	struct worker_storage *stor;
 
-	for (i = 0; i < nthreads; i++) {
-		worker = &worker_threads[i];
-		spin_lock(&worker->lock);
-		list_for_each_entry(c, &worker->list, list) {
+	for_each_possible_cpu(cpu) {
+		stor = per_cpu_ptr(storage, cpu);
+
+		spin_lock(&stor->lock);
+		list_for_each_entry(c, &stor->list, list) {
 			set_bit(EV_DEAD, &c->event);
 		}
-		spin_unlock(&worker->lock);
+		spin_unlock(&stor->lock);
 	}
-	for (i = 0; i < nthreads; i++) {
-		worker = &worker_threads[i];
-		flush_workqueue(worker->wq);
-		destroy_workqueue(worker->wq);
-	}
-	for (i = 0; i < nthreads; i++) {
-		worker = &worker_threads[i];
-		/* don't need to lock here */
-		list_for_each_entry_safe(c, n, &worker->list, list) {
+	flush_workqueue(slaved);
+
+	for_each_possible_cpu(cpu) {
+		stor = per_cpu_ptr(storage, cpu);
+
+		list_for_each_entry_safe(c, n, &stor->list, list) {
 			if (IS_UDP(c->transport)) {
 				list_for_each_entry(t, &head, list) {
 					if (t->sock == c->sock)
@@ -679,13 +682,15 @@ void workers_exit(void)
 			mc_conn_put(c);
 		}
 	}
+
 	list_for_each_entry_safe(c, n, &head, list) {
 		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
 		sock_release(c->sock);
 		mc_conn_put(c);
 	}
 
-	kfree(worker_threads);
+	destroy_workqueue(slaved);
+	free_percpu(storage);
 	item_lock_exit();
 }
 

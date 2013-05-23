@@ -34,31 +34,34 @@ struct thread_stats {
 	struct slab_stats slab_stats[MAX_SLAB_CLASSES];
 };
 
-/* worker thread */
-struct worker_thread {
+/* slaved info storage */
+struct worker_storage {
 	spinlock_t lock;
-	struct list_head list;
-	struct workqueue_struct *wq;
+	struct list_head list;	/* conn list */
 
 	struct thread_stats stats;
 	item_lock_t lock_type;
 };
 
-/* new conn from dispatcher */
+extern struct worker_storage *storage;
+extern struct workqueue_struct *slaved;
+
+/* new conn from master */
 struct conn_req {
 	conn_state_t state;
 	net_transport_t transport;
 	struct socket *sock;
 	int rsize;
+	int cpu;
 	struct work_struct work;
-	struct worker_thread *who;
+	struct worker_storage *who;
 };
 extern struct kmem_cache *conn_req_cachep;
 
-/* items lock for worker thread */
+/* items lock for slaved */
 struct lock_xchg_req {
 	item_lock_t type;
-	struct worker_thread *who;
+	struct worker_storage *who;
 	struct work_struct work;
 };
 extern struct kmem_cache *lock_xchg_req_cachep;
@@ -86,24 +89,22 @@ static inline void free_lock_xchg_req(void *obj)
 item*	mc_item_alloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
 int	mc_item_cachedump(unsigned int slabs_clsid, unsigned int limit, struct buffer *buf);
 void	mc_item_flush_expired(void);
-item*	mc_item_get(struct worker_thread *worker, const char *key, size_t nkey);
-item*	mc_item_touch(struct worker_thread *worker, const char *key, size_t nkey, u32 exptime);
-int	mc_item_link(struct worker_thread *worker, item *it);
-void	mc_item_remove(struct worker_thread *worker, item *it);
+item*	mc_item_get(struct worker_storage *worker, const char *key, size_t nkey);
+item*	mc_item_touch(struct worker_storage *worker, const char *key, size_t nkey, u32 exptime);
+int	mc_item_link(struct worker_storage *worker, item *it);
+void	mc_item_remove(struct worker_storage *worker, item *it);
 int	mc_item_replace(item *it, item *new_it, u32 hv);
 void	mc_item_stats(add_stat_fn f, void *c);
 void	mc_item_stats_totals(add_stat_fn f, void *c);
 void	mc_item_stats_sizes(add_stat_fn f, void *c);
-void	mc_item_unlink(struct worker_thread *worker, item *it);
-void	mc_item_update(struct worker_thread *worker, item *it);
-delta_result_t mc_add_delta(struct worker_thread *worker, conn *c,
+void	mc_item_unlink(struct worker_storage *worker, item *it);
+void	mc_item_update(struct worker_storage *worker, item *it);
+delta_result_t mc_add_delta(struct worker_storage *worker, conn *c,
 			    const char *key, size_t nkey,
 			    int incr, s64 delta, char *buf, u64 *cas);
-store_item_t mc_store_item(struct worker_thread *worker, item *item, int comm, conn *c);
+store_item_t mc_store_item(struct worker_storage *worker, item *item, int comm, conn *c);
 void	mc_item_lock_global(void);
 void	mc_item_unlock_global(void);
-void	mc_item_lock(struct worker_thread *worker, u32 hv);
-void	mc_item_unlock(struct worker_thread *worker, u32 hv);
 void*	mc_item_trylock(u32 hv);
 void	mc_item_trylock_unlock(void *arg);
 void	mc_threadlocal_stats_reset(void);
