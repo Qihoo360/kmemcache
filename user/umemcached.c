@@ -52,8 +52,6 @@ static void usage(void)
            "-vvv          extremely verbose (also print internal state transitions)\n"
            "-h            print this help and exit\n"
            "-i            print memcached and libevent license\n"
-           "-P <file>     save PID in <file>, only used with -d option\n"
-           "              XXX: must be absolute path\n"
            "-f <factor>   chunk size growth factor (default: 1.25)\n"
            "-n <bytes>    minimum space allocated for key+value+flags (default: 48)\n");
     printf("-L            Try to use large memory pages (if available). Increasing\n"
@@ -175,15 +173,6 @@ static void usage_license(void)
     );
 
     return;
-}
-
-static void remove_pidfile(const char *pid_file)
-{
-	if (pid_file == NULL)
-		return;
-	if (unlink(pid_file) != 0) {
-		printf("Could not remove the pid file %s", pid_file);
-	}
 }
 
 /*
@@ -463,7 +452,6 @@ int main(int argc, char *argv[])
 	int c;
 	int do_daemonize= 0;
 	int maxcore	= 0;
-	char *pid_file	= NULL;
 	struct rlimit rlim;
 	char unit	= '\0';
 	int size_max	= 0;
@@ -505,17 +493,13 @@ int main(int argc, char *argv[])
 		"m:"	/* max memory to use for items in megabytes */
 		"M"	/* return error on memory exhausted */
 		"c:"	/* max simultaneous connections */
-		"k"	/* lock down all paged memory */
 		"hi"	/* help, licence info */
 		"r"	/* maximize core file limit */
 		"v"	/* verbose */
 		"d"	/* daemon mode */
 		"l:"	/* interface to listen on */
-		"u:"	/* user identity to run as */
-		"P:"	/* save PID in file */
 		"f:"	/* factor? */
 		"n:"	/* minimum space allocated for key+value+flags */
-		"t:"	/* threads */
 		"D:"	/* prefix delimiter? */
 		"L"	/* Large memory pages */
 		"R:"	/* max requests per event */
@@ -593,9 +577,6 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "Number of requests per event must be greater than 0\n");
 				return 1;
 			}
-			break;
-		case 'P':
-			pid_file = optarg;
 			break;
 		case 'f':
 			if (atof(optarg) <= 1.0) {
@@ -832,10 +813,6 @@ int main(int argc, char *argv[])
 	}
 
 	main_loop();
-
-	/* remove the PID file if we're a daemon */
-	if (do_daemonize)
-		remove_pidfile(pid_file);
 
 	return 0;
 }

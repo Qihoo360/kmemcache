@@ -570,11 +570,16 @@ static int unlink_socket_file(const char *name)
 		ret = -EINVAL;
 		goto out;
 	}
-	if (kern_path(name, LOOKUP_FOLLOW, &path)) {
+
+	ret = kern_path(name, LOOKUP_FOLLOW, &path);
+	if (ret == -ENOENT) {
+		ret = 0;
+		goto out;
+	} else if (ret < 0) {
 		PRINTK("parse unix socket path error\n");
-		ret = -EINVAL;
 		goto out;
 	}
+
 	if (path.dentry->d_inode && S_ISSOCK(path.dentry->d_inode->i_mode)) {
 		if ((ret = mnt_want_write(path.mnt))) {
 			PRINTK("access permission error\n");
