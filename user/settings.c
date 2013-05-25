@@ -203,7 +203,6 @@ static int construct_settings(struct cn_msg *msg)
 	data->verbose		  = settings.verbose;
 	data->maxbytes		  = settings.maxbytes;
 	data->maxconns		  = settings.maxconns;
-	data->num_threads 	  = settings.num_threads;
 	data->num_threads_per_udp = settings.num_threads_per_udp;
 	data->reqs_per_event	  = settings.reqs_per_event;
 	data->evict_to_free	  = settings.evict_to_free;

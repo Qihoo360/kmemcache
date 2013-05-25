@@ -442,13 +442,21 @@ static int server_socket_inet(sock_entry_t *se, struct file *filp)
 	}
 
 	if (IS_UDP(se->trans)) {
-		int i, res = 0;
+		static int last_cpu = -1;
+		int cpu, res = 0;
 
-		for (i = 0; i < settings.num_threads_per_udp; i++) {
-			ret = mc_dispatch_conn_new(ss->sock, conn_read,
-						   UDP_READ_BUF_SIZE,
-						   ss->transport);
+		if (settings.num_threads_per_udp == 1) {
+			last_cpu = (last_cpu + 1) % num_online_cpus();
+			ret = mc_dispatch_conn_udp(ss->sock, conn_read,
+						   UDP_READ_BUF_SIZE, last_cpu);
 			if (!ret) res++;
+		} else {
+			for_each_online_cpu(cpu) {
+				ret = mc_dispatch_conn_udp(ss->sock, conn_read,
+							   UDP_READ_BUF_SIZE,
+							   cpu);
+				if (!ret) res++;
+			}
 		}
 
 		if (res) {

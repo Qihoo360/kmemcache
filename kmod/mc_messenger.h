@@ -50,6 +50,7 @@ struct slistbuf {
 #define EV_READ		2	/* read event, not used */
 #define EV_WRITE	3	/* write event, note used */
 #define EV_RDWR		4	/* 1 for READ, 0 for WRITE */
+#define EV_BUSY		5	/* in process */
 #define EV_CLOSED	7	/* udp closed */
 #define EV_DEAD		9	/* about to free */
 
@@ -59,7 +60,6 @@ struct slistbuf {
 struct conn {
 	unsigned long event;
 	atomic_t nref;
-	int cpu;
 	struct worker_storage *who;
 	struct work_struct work;
 	struct list_head list;

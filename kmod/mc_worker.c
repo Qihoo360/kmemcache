@@ -401,14 +401,16 @@ void mc_item_stats_sizes(add_stat_fn f, void *c)
 
 void mc_threadlocal_stats_reset(void)
 {
-	int i;
+	int cpu, size;
+	struct worker_storage *stor;
+	struct thread_stats *sts;
 
-	for (i = 0; i < settings.num_threads; ++i) {
-		struct thread_stats *sts =
-				&storage[i].stats;
-		size_t size = sizeof(struct thread_stats)
-			      - ((char *)(&sts->get_cmds)
-			      - (char *)sts);
+	for_each_possible_cpu(cpu) {
+		stor = per_cpu_ptr(storage, cpu);
+		sts = &stor->stats;
+		size = sizeof(struct thread_stats)
+			- ((char *)(&sts->get_cmds)
+			- (char *)sts);
 
 		spin_lock(&sts->lock);
 		memset((char *)(&sts->get_cmds), 0, size);
@@ -418,15 +420,18 @@ void mc_threadlocal_stats_reset(void)
 
 void mc_threadlocal_stats_aggregate(struct thread_stats *stats)
 {
-	int i, sid;
+	int cpu, sid;
+	struct worker_storage *stor;
+	struct thread_stats *sts;
 
 	/* The struct has a mutex, but we can safely set the whole thing
 	 * to zero since it is unused when aggregating. */
 	memset(stats, 0, sizeof(*stats));
 
-	for (i = 0; i < settings.num_threads; ++i) {
-		struct thread_stats *sts =
-				&storage[i].stats;
+	for_each_possible_cpu(cpu) {
+		stor = per_cpu_ptr(storage, cpu);
+		sts = &stor->stats;
+
 		spin_lock(&sts->lock);
 
 		stats->get_cmds	     += sts->get_cmds;
@@ -529,8 +534,12 @@ void mc_conn_work(struct work_struct *work)
 
 	if (test_bit(EV_DEAD, &c->event))
 		goto put_con;
+	if (test_and_set_bit(EV_BUSY, &c->event))
+		goto put_con;
 
 	mc_worker_machine(c);
+
+	clear_bit(EV_BUSY, &c->event);
 	mc_requeue_conn(c);
 
 put_con:
@@ -542,11 +551,9 @@ put_con:
  *
  * Returns 0 on success, error code other wise
  */
-int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
-			 int rbuflen, net_transport_t transport)
+static inline int __dispatch_conn_new(struct socket *sock, conn_state_t state,
+				      int rbuflen, net_transport_t transport, int cpu)
 {
-	static int cpu = -1;
-
 	int ret = 0;
 	struct conn_req *rq;
 
@@ -557,23 +564,10 @@ int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 		goto out;
 	}
 
-	/*
-find_cpu:
-	cpu = next_cpu(cpu, cpu_online_mask);
-	if (!cpu_online(cpu)) {
-		PRINTK("dispatch to cpu: %d not online\n", cpu);
-		goto find_cpu;
-	}
-	*/
-	cpu = get_cpu();
-	put_cpu();
-
-	rq->cpu = cpu;
 	rq->state = state;
 	rq->transport = transport;
 	rq->sock = sock;
 	rq->rsize = rbuflen;
-	rq->who = per_cpu_ptr(storage, rq->cpu);
 	INIT_WORK(&rq->work, mc_conn_new_work);
 
 	ret = queue_work_on(cpu, slaved, &rq->work);
@@ -588,6 +582,23 @@ find_cpu:
 free_req:
 	free_conn_req(rq);
 out:
+	return ret;
+}
+
+int mc_dispatch_conn_udp(struct socket *sock, conn_state_t state,
+			 int rbuflen, int cpu)
+{
+	return __dispatch_conn_new(sock, state, rbuflen, udp_transport, cpu);
+}
+
+int mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
+			 int rbuflen, net_transport_t transport)
+{
+	int ret;
+
+	ret = __dispatch_conn_new(sock, state, rbuflen, transport, get_cpu());
+	put_cpu();
+
 	return ret;
 }
 

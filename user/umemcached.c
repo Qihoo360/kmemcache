@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE	500
+
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -17,6 +19,7 @@
 #include <limits.h>
 #include <sysexits.h>
 #include <errno.h>
+#include <assert.h>
 #include <pwd.h>
 #include <math.h>
 
@@ -44,11 +47,6 @@ static void usage(void)
            "-m <num>      max memory to use for items in megabytes (default: 64 MB)\n"
            "-M            return error on memory exhausted (rather than removing items)\n"
            "-c <num>      max simultaneous connections (default: 1024)\n"
-           "-k***         lock down all paged memory.  Note that there is a\n"
-           "              limit on how much memory you may lock.  Trying to\n"
-           "              allocate more than that would fail, so be sure you\n"
-           "              set the limit correctly for the user you started\n"
-           "              under sh this is done with 'ulimit -S -l NUM_KB').\n"
            "-v            verbose (print errors/warnings while in event loop)\n"
            "-vv           very verbose (also print client commands/reponses)\n"
            "-vvv          extremely verbose (also print internal state transitions)\n"
@@ -68,7 +66,6 @@ static void usage(void)
            "              \":\" (colon). If this option is specified, stats collection\n"
            "              is turned on automatically; if not, then it may be turned on\n"
            "              by sending the \"stats detail on\" command to the server.\n");
-    printf("-t <num>      number of threads to use (default: 4)\n");
     printf("-R            Maximum number of requests per event, limits the number of\n"
            "              requests process for a given connection to prevent \n"
            "              starvation (default: 20)\n");
@@ -189,6 +186,7 @@ static void remove_pidfile(const char *pid_file)
 	}
 }
 
+/*
 #ifndef HAVE_SIGIGNORE
 static int sigignore(int sig)
 {
@@ -204,6 +202,7 @@ static int sigignore(int sig)
 	return 0;
 }
 #endif
+*/
 
 /*
  * On systems that supports multiple page sizes we may reduce the
@@ -269,7 +268,6 @@ static void settings_init(void)
 	settings.factor_numerator	= 125;
 	settings.factor_denominator	= 100;
 	settings.chunk_size	= 48;         /* space for a modest key and value */
-	settings.num_threads	= 4;         /* N workers */
 	settings.num_threads_per_udp	= 0;
 	settings.prefix_delimiter	= ':';
 	settings.detail_enabled	= 0;
@@ -466,7 +464,6 @@ int main(int argc, char *argv[])
 	int do_daemonize= 0;
 	int maxcore	= 0;
 	char *pid_file	= NULL;
-	struct passwd *pw;
 	struct rlimit rlim;
 	char unit	= '\0';
 	int size_max	= 0;
@@ -614,23 +611,6 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			break;
-		case 't':
-			settings.num_threads = atoi(optarg);
-			if (settings.num_threads <= 0) {
-				fprintf(stderr, "Number of threads must be greater than 0\n");
-				return 1;
-			}
-			/* There're other problems when you get above 64 threads.
-			 * In the future we should portably detect # of cores for the
-			 * default.
-			 */
-			if (settings.num_threads > 64) {
-				fprintf(stderr, "WARNING: Setting a high number of worker"
-						"threads is not recommended.\n"
-						" Set this value to the number of cores in"
-						" your machine or less.\n");
-			}
-			break;
 		case 'D':
 			if (! optarg || ! optarg[0]) {
 				fprintf(stderr, "No delimiter specified\n");
@@ -765,7 +745,7 @@ int main(int argc, char *argv[])
 	if (settings.inter != NULL && strchr(settings.inter, ',')) {
 		settings.num_threads_per_udp = 1;
 	} else {
-		settings.num_threads_per_udp = settings.num_threads;
+		settings.num_threads_per_udp = 0x7fffffff;
 	}
 
 	if (settings.sasl) {

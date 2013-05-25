@@ -44,7 +44,6 @@ typedef struct {
 	__s32 verbose;
 	__u64 maxbytes;
 	__s32 maxconns;
-	__s32 num_threads;
 	__s32 num_threads_per_udp;
 	__s32 reqs_per_event;
 	__s32 evict_to_free;
@@ -90,7 +89,6 @@ struct settings {
 	__s32 verbose;
 	__u64 maxbytes;
 	__s32 maxconns;
-	__s32 num_threads;
 	__s32 num_threads_per_udp;
 	__s32 reqs_per_event;
 	__s32 evict_to_free;

@@ -43,7 +43,7 @@ struct worker_storage {
 	item_lock_t lock_type;
 };
 
-extern struct worker_storage *storage;
+extern struct worker_storage *storage __percpu;
 extern struct workqueue_struct *slaved;
 
 /* new conn from master */
@@ -52,9 +52,7 @@ struct conn_req {
 	net_transport_t transport;
 	struct socket *sock;
 	int rsize;
-	int cpu;
 	struct work_struct work;
-	struct worker_storage *who;
 };
 extern struct kmem_cache *conn_req_cachep;
 
@@ -111,6 +109,8 @@ void	mc_threadlocal_stats_reset(void);
 void	mc_threadlocal_stats_aggregate(struct thread_stats *stats);
 void	mc_slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out);
 void	mc_switch_item_lock_type(item_lock_t type);
+int	mc_dispatch_conn_udp(struct socket *sock, conn_state_t state,
+			     int rbuflen, int udp);
 int	mc_dispatch_conn_new(struct socket *sock, conn_state_t state,
 			     int rbuflen, net_transport_t transport);
 void	mc_conn_work(struct work_struct *work);

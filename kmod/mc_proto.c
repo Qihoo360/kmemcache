@@ -409,7 +409,7 @@ void mc_stat_settings(add_stat_fn f, void *c)
 	APPEND_STAT("growth_factor_numerator", "%d", settings.factor_numerator);
 	APPEND_STAT("growth_factor_denominator", "%d", settings.factor_denominator);
 	APPEND_STAT("chunk_size", "%d", settings.chunk_size);
-	APPEND_STAT("num_threads", "%d", settings.num_threads);
+	APPEND_STAT("num_threads", "%d", num_possible_cpus());
 	APPEND_STAT("num_threads_per_udp", "%d", settings.num_threads_per_udp);
 	APPEND_STAT("stat_key_prefix", "%c", settings.prefix_delimiter);
 	APPEND_STAT("detail_enabled", "%s",
@@ -486,7 +486,7 @@ void mc_server_stats(add_stat_fn f, conn *c)
 	APPEND_STAT("limit_maxbytes", "%llu", (unsigned long long)settings.maxbytes);
 	APPEND_STAT("accepting_conns", "%u", _stats.accepting_conns);
 	APPEND_STAT("listen_disabled_num", "%llu", (unsigned long long)_stats.listen_disabled_num);
-	APPEND_STAT("threads", "%d", settings.num_threads);
+	APPEND_STAT("threads", "%d", num_possible_cpus());
 	APPEND_STAT("conn_yields", "%llu", (unsigned long long)thread_stats->conn_yields);
 	APPEND_STAT("hash_power_level", "%u", _stats.hash_power_level);
 	APPEND_STAT("hash_bytes", "%llu", (unsigned long long)_stats.hash_bytes);

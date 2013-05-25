@@ -8,7 +8,7 @@
 #define PACKAGE_NAME "kmemcache"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "kmemcache 0.1"
+#define PACKAGE_STRING "kmemcache 0.4"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "kmemcache"
@@ -17,12 +17,12 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.1"
+#define PACKAGE_VERSION "0.4"
 
 /* Version number of package */
-#define VERSION "0.1"
+#define VERSION "0.4"
 
 /* Release number of package */
-#define REL_VERSION "2012-12-21-0-1"
+#define REL_VERSION "May 25, 2013"
 
 #define LOG_PREFIX	"kmemcache: "

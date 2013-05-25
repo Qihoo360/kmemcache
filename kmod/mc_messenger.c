@@ -70,6 +70,7 @@ static void mc_conn_free(conn *c)
 conn* mc_conn_new(struct conn_req *rq)
 {
 	struct worker_storage *stor;
+
 	conn *c = _conn_new();
 
 	if (!c) {
@@ -123,12 +124,12 @@ conn* mc_conn_new(struct conn_req *rq)
 	set_bit(EV_RDWR, &c->event);
 	set_sock_callbacks(c->sock, c);
 
-	c->cpu = rq->cpu;
-	stor = rq->who;
+	stor = per_cpu_ptr(storage, get_cpu());
 	c->who = stor;
 	spin_lock(&stor->lock);
-	list_add(&c->list, &stor->list);
+	list_add_tail(&c->list, &stor->list);
 	spin_unlock(&stor->lock);
+	put_cpu();
 
 	spin_lock(&stats_lock);
         stats.conn_structs++;
@@ -367,13 +368,17 @@ static void set_sock_callbacks(struct socket *sock, conn *c)
 
 static inline void __queue_conn(conn *c)
 {
+	/*
+	if (test_bit(EV_BUSY, &c->event))
+		return;
+	*/
 	/* release in mc_conn_work */
 	if (!mc_conn_get(c)) {
 		PRINTK("mc_queue_conn %p ref count 0\n", c);
 		return;
 	}
 
-	if (!queue_work_on(c->cpu, slaved, &c->work)) {
+	if (!queue_work(slaved, &c->work)) {
 		PRINFO("mc_queue_conn %p already on queue", c);
 		mc_conn_put(c);
 	} else {
