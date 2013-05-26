@@ -26,6 +26,7 @@ char* s2c_msg[MSG_MAX] __read_mostly = {
 	MSG_ENTRY(MSG_SER_STYPE,	"SERVER_ERROR Unhandled storage type."),
 	MSG_ENTRY(MSG_SER_LNGOUT,	"SERVER_ERROR output line too long"),
 
+	MSG_ENTRY(MSG_BIN_AUTHED,	"Authenticated"),
 	MSG_ENTRY(MSG_BIN_OOM,		"Out of memory"),
 	MSG_ENTRY(MSG_BIN_NCMD,		"Unknown command"),
 	MSG_ENTRY(MSG_BIN_NFD,		"Not found"),

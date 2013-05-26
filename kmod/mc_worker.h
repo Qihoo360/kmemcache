@@ -15,8 +15,6 @@ struct slab_stats {
 
 /* stats stored per-thread */
 struct thread_stats {
-	spinlock_t lock;
-
 	u64 get_cmds;
 	u64 get_misses;
 	u64 touch_cmds;
@@ -34,11 +32,20 @@ struct thread_stats {
 	struct slab_stats slab_stats[MAX_SLAB_CLASSES];
 };
 
+#ifndef CONFIG_SLOCK
+#define ATOMIC64_SET(ptr, val)	atomic64_set((atomic64_t *)&(ptr), (val))
+#define ATOMIC64_INC(ptr)	atomic64_inc((atomic64_t *)&(ptr))
+#define ATOMIC64_ADD(ptr, val)	atomic64_add((val), (atomic64_t *)&(ptr))
+#endif
+
 /* slaved info storage */
 struct worker_storage {
 	spinlock_t lock;
 	struct list_head list;	/* conn list */
 
+#ifdef CONFIG_SLOCK
+	spinlock_t slock;	/* thread_stats */
+#endif
 	struct thread_stats stats;
 	item_lock_t lock_type;
 };

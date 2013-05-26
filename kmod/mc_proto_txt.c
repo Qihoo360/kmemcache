@@ -274,19 +274,29 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 				PVERBOSE(1, ">%s sending key %s\n", current->comm, ITEM_key(it));
 
 				/* item_get() has incremented it->refcount for us */
-				spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+				spin_lock(&c->who->slock);
 				c->who->stats.slab_stats[it->slabs_clsid].get_hits++;
 				c->who->stats.get_cmds++;
-				spin_unlock(&c->who->stats.lock);
+				spin_unlock(&c->who->slock);
+#else
+				ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].get_hits);
+				ATOMIC64_INC(c->who->stats.get_cmds);
+#endif
 				mc_item_update(c->who, it);
 				*(c->cn_ilist + i) = it;
 				i++;
 
 			} else {
-				spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+				spin_lock(&c->who->slock);
 				c->who->stats.get_misses++;
 				c->who->stats.get_cmds++;
-				spin_unlock(&c->who->stats.lock);
+				spin_unlock(&c->who->slock);
+#else
+				ATOMIC64_INC(c->who->stats.get_misses);
+				ATOMIC64_INC(c->who->stats.get_cmds);
+#endif
 			}
 
 			key_token++;
@@ -445,18 +455,28 @@ static void txt_touch(conn *c, token_t *tokens, size_t ntokens)
 	it = mc_item_touch(c->who, key, nkey, realtime(exptime_int));
 	if (it) {
 		mc_item_update(c->who, it);
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.touch_cmds++;
 		c->who->stats.slab_stats[it->slabs_clsid].touch_hits++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.touch_cmds);
+		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].touch_hits);
+#endif
 
 		OSTRING(c, MSG_TXT_TOUCHED);
 		mc_item_remove(c->who, it);
 	} else {
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.touch_cmds++;
 		c->who->stats.touch_misses++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.touch_cmds);
+		ATOMIC64_INC(c->who->stats.touch_misses);
+#endif
 		OSTRING(c, MSG_TXT_NFOUND);
 	}
 }
@@ -494,13 +514,21 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 		OSTRING(c, MSG_SER_OOM);
 		break;
 	case DELTA_ITEM_NOT_FOUND:
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		if (incr) {
 			c->who->stats.incr_misses++;
 		} else {
 			c->who->stats.decr_misses++;
 		}
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		if (incr) {
+			ATOMIC64_INC(c->who->stats.incr_misses);
+		} else {
+			ATOMIC64_INC(c->who->stats.decr_misses);
+		}
+#endif
 
 		OSTRING(c, MSG_TXT_NFOUND);
 		break;
@@ -541,17 +569,25 @@ static void txt_delete(conn *c, token_t *tokens, size_t ntokens)
 
 	it = mc_item_get(c->who, key, nkey);
 	if (it) {
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.slab_stats[it->slabs_clsid].delete_hits++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].delete_hits);
+#endif
 
 		mc_item_unlink(c->who,it);
 		mc_item_remove(c->who, it);      /* release our reference */
 		OSTRING(c, MSG_TXT_DELETED);
 	} else {
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.delete_misses++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.delete_misses);
+#endif
 
 		OSTRING(c, MSG_TXT_NFOUND);
 	}
@@ -657,9 +693,13 @@ static void txt_dispatch_command(conn *c, char *command)
 
 		set_noreply_maybe(c, tokens, ntokens);
 
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.flush_cmds++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.flush_cmds);
+#endif
 
 		if(ntokens == (c->noreply ? 3 : 2)) {
 		    settings.oldest_live = current_time - 1;
@@ -761,9 +801,13 @@ static void txt_complete_nread(conn *c)
 	int comm = c->cmd;
 	store_item_t ret;
 
-	spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+	spin_lock(&c->who->slock);
 	c->who->stats.slab_stats[it->slabs_clsid].set_cmds++;
-	spin_unlock(&c->who->stats.lock);
+	spin_unlock(&c->who->slock);
+#else
+	ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].set_cmds);
+#endif
 
 	if (strncmp(ITEM_data(it) + it->nbytes - 2, "\r\n", 2)) {
 		OSTRING(c, MSG_TXT_BAD_CHUNK);

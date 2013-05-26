@@ -398,41 +398,37 @@ void mc_item_stats_sizes(add_stat_fn f, void *c)
 /*********************************************************************
  * thread ops
  ********************************************************************/
-
+#ifdef CONFIG_SLOCK
 void mc_threadlocal_stats_reset(void)
 {
-	int cpu, size;
+	int cpu;
 	struct worker_storage *stor;
-	struct thread_stats *sts;
 
 	for_each_possible_cpu(cpu) {
 		stor = per_cpu_ptr(storage, cpu);
-		sts = &stor->stats;
-		size = sizeof(struct thread_stats)
-			- ((char *)(&sts->get_cmds)
-			- (char *)sts);
-
-		spin_lock(&sts->lock);
-		memset((char *)(&sts->get_cmds), 0, size);
-		spin_unlock(&sts->lock);
+		spin_lock(&stor->slock);
+		memset(&stor->stats, 0, sizeof(struct thread_stats));
+		spin_unlock(&stor->slock);
 	}
 }
 
 void mc_threadlocal_stats_aggregate(struct thread_stats *stats)
 {
-	int cpu, sid;
+	int cpu, i;
 	struct worker_storage *stor;
 	struct thread_stats *sts;
 
-	/* The struct has a mutex, but we can safely set the whole thing
-	 * to zero since it is unused when aggregating. */
+	/* 
+	 * The struct has a mutex, but we can safely set the whole thing
+	 * to zero since it is unused when aggregating.
+	 */
 	memset(stats, 0, sizeof(*stats));
 
 	for_each_possible_cpu(cpu) {
 		stor = per_cpu_ptr(storage, cpu);
 		sts = &stor->stats;
 
-		spin_lock(&sts->lock);
+		spin_lock(&stor->slock);
 
 		stats->get_cmds	     += sts->get_cmds;
 		stats->get_misses    += sts->get_misses;
@@ -449,47 +445,141 @@ void mc_threadlocal_stats_aggregate(struct thread_stats *stats)
 		stats->auth_cmds     += sts->auth_cmds;
 		stats->auth_errors   += sts->auth_errors;
 
-		for (sid = 0; sid < MAX_SLAB_CLASSES; sid++) {
-			stats->slab_stats[sid].set_cmds +=
-				sts->slab_stats[sid].set_cmds;
-			stats->slab_stats[sid].get_hits +=
-				sts->slab_stats[sid].get_hits;
-			stats->slab_stats[sid].touch_hits +=
-				sts->slab_stats[sid].touch_hits;
-			stats->slab_stats[sid].delete_hits +=
-				sts->slab_stats[sid].delete_hits;
-			stats->slab_stats[sid].decr_hits +=
-				sts->slab_stats[sid].decr_hits;
-			stats->slab_stats[sid].incr_hits +=
-				sts->slab_stats[sid].incr_hits;
-			stats->slab_stats[sid].cas_hits +=
-				sts->slab_stats[sid].cas_hits;
-			stats->slab_stats[sid].cas_badval +=
-				sts->slab_stats[sid].cas_badval;
+		for (i = 0; i < MAX_SLAB_CLASSES; i++) {
+			struct slab_stats *s, *d;
+
+			s = &stats->slab_stats[i];
+			d = &sts->slab_stats[i];
+
+			s->set_cmds	+= d->set_cmds;
+			s->get_hits	+= d->get_hits;
+			s->touch_hits	+= d->touch_hits;
+			s->delete_hits	+= d->delete_hits;
+			s->decr_hits	+= d->decr_hits;
+			s->incr_hits	+= d->incr_hits;
+			s->cas_hits	+= d->cas_hits;
+			s->cas_badval	+= d->cas_badval;
 		}
 
-		spin_unlock(&sts->lock);
+		spin_unlock(&stor->slock);
+	}
+}
+#else
+void mc_threadlocal_stats_reset(void)
+{
+	int cpu, i;
+	struct worker_storage *stor;
+	struct thread_stats *sts;
+
+	for_each_possible_cpu(cpu) {
+		stor = per_cpu_ptr(storage, cpu);
+		sts  = &stor->stats;
+
+		ATOMIC64_SET(sts->get_cmds,	0);
+		ATOMIC64_SET(sts->get_misses,	0);
+		ATOMIC64_SET(sts->touch_cmds,	0);
+		ATOMIC64_SET(sts->touch_misses, 0);
+		ATOMIC64_SET(sts->delete_misses,0);
+		ATOMIC64_SET(sts->incr_misses,	0);
+		ATOMIC64_SET(sts->decr_misses,	0);
+		ATOMIC64_SET(sts->cas_misses,	0);
+		ATOMIC64_SET(sts->bytes_read,	0);
+		ATOMIC64_SET(sts->bytes_written,0);
+		ATOMIC64_SET(sts->flush_cmds,	0);
+		ATOMIC64_SET(sts->conn_yields,	0);
+		ATOMIC64_SET(sts->auth_cmds,	0);
+		ATOMIC64_SET(sts->auth_errors,	0);
+
+		for (i = 0; i < MAX_SLAB_CLASSES; i++) {
+			struct slab_stats *slabsts;
+
+			slabsts = &sts->slab_stats[i];
+			ATOMIC64_SET(slabsts->set_cmds,   0);
+			ATOMIC64_SET(slabsts->get_hits,   0);
+			ATOMIC64_SET(slabsts->touch_hits, 0);
+			ATOMIC64_SET(slabsts->delete_hits,0);
+			ATOMIC64_SET(slabsts->cas_hits,   0);
+			ATOMIC64_SET(slabsts->cas_badval, 0);
+			ATOMIC64_SET(slabsts->incr_hits,  0);
+			ATOMIC64_SET(slabsts->decr_hits,  0);
+		}
 	}
 }
 
+void mc_threadlocal_stats_aggregate(struct thread_stats *stats)
+{
+	int cpu, i;
+	struct worker_storage *stor;
+	struct thread_stats *sts;
+
+#define ATOMIC64_ASSIGN(l, r)					 \
+		do {						 \
+			(l) += atomic64_read((atomic64_t *)&(r));\
+		} while (0)
+	/* 
+	 * The struct has a mutex, but we can safely set the whole thing
+	 * to zero since it is unused when aggregating.
+	 */
+	memset(stats, 0, sizeof(*stats));
+
+	for_each_possible_cpu(cpu) {
+		stor = per_cpu_ptr(storage, cpu);
+		sts = &stor->stats;
+
+		ATOMIC64_ASSIGN(stats->get_cmds,	sts->get_cmds);
+		ATOMIC64_ASSIGN(stats->get_misses,	sts->get_misses);
+		ATOMIC64_ASSIGN(stats->touch_cmds,	sts->touch_cmds);
+		ATOMIC64_ASSIGN(stats->touch_misses,	sts->touch_misses);
+		ATOMIC64_ASSIGN(stats->delete_misses,	sts->delete_misses);
+		ATOMIC64_ASSIGN(stats->decr_misses,	sts->decr_misses);
+		ATOMIC64_ASSIGN(stats->incr_misses,	sts->incr_misses);
+		ATOMIC64_ASSIGN(stats->cas_misses,	sts->cas_misses);
+		ATOMIC64_ASSIGN(stats->bytes_read,	sts->bytes_read);
+		ATOMIC64_ASSIGN(stats->bytes_written,	sts->bytes_written);
+		ATOMIC64_ASSIGN(stats->flush_cmds,	sts->flush_cmds);
+		ATOMIC64_ASSIGN(stats->conn_yields,	sts->conn_yields);
+		ATOMIC64_ASSIGN(stats->auth_cmds,	sts->auth_cmds);
+		ATOMIC64_ASSIGN(stats->auth_errors,	sts->auth_errors);
+
+		for (i = 0; i < MAX_SLAB_CLASSES; i++) {
+			struct slab_stats *s, *d;
+
+			s = &stats->slab_stats[i];
+			d = &sts->slab_stats[i];
+
+			ATOMIC64_ASSIGN(s->set_cmds,	d->set_cmds);
+			ATOMIC64_ASSIGN(s->get_hits,	d->get_hits);
+			ATOMIC64_ASSIGN(s->touch_hits,	d->touch_hits);
+			ATOMIC64_ASSIGN(s->delete_hits,	d->delete_hits);
+			ATOMIC64_ASSIGN(s->decr_hits,	d->decr_hits);
+			ATOMIC64_ASSIGN(s->incr_hits,	d->incr_hits);
+			ATOMIC64_ASSIGN(s->cas_hits,	d->cas_hits);
+			ATOMIC64_ASSIGN(s->cas_badval,	d->cas_badval);
+		}
+	}
+
+#undef ATOMIC64_ASSIGN
+}
+#endif
+
+
+/* no lock here, see caller */
 void mc_slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out)
 {
-	int sid;
+	int i;
 
 	memset(out, 0, sizeof(*out));
 
-	//spin_lock(&stats->lock);
-	for (sid = 0; sid < MAX_SLAB_CLASSES; sid++) {
-		out->set_cmds    += stats->slab_stats[sid].set_cmds;
-		out->get_hits    += stats->slab_stats[sid].get_hits;
-		out->touch_hits  += stats->slab_stats[sid].touch_hits;
-		out->delete_hits += stats->slab_stats[sid].delete_hits;
-		out->decr_hits   += stats->slab_stats[sid].decr_hits;
-		out->incr_hits   += stats->slab_stats[sid].incr_hits;
-		out->cas_hits    += stats->slab_stats[sid].cas_hits;
-		out->cas_badval  += stats->slab_stats[sid].cas_badval;
+	for (i = 0; i < MAX_SLAB_CLASSES; i++) {
+		out->set_cmds    += stats->slab_stats[i].set_cmds;
+		out->get_hits    += stats->slab_stats[i].get_hits;
+		out->touch_hits  += stats->slab_stats[i].touch_hits;
+		out->delete_hits += stats->slab_stats[i].delete_hits;
+		out->decr_hits   += stats->slab_stats[i].decr_hits;
+		out->incr_hits   += stats->slab_stats[i].incr_hits;
+		out->cas_hits    += stats->slab_stats[i].cas_hits;
+		out->cas_badval  += stats->slab_stats[i].cas_badval;
 	}
-	//spin_unlock(&stats->lock);
 }
 
 static void mc_lock_xchg_work(struct work_struct *work)
@@ -630,7 +720,9 @@ int workers_init(void)
 		memset(stor, 0, sizeof(*stor));
 		INIT_LIST_HEAD(&stor->list);
 		spin_lock_init(&stor->lock);
-		spin_lock_init(&stor->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock_init(&stor->slock);
+#endif
 		stor->lock_type = ITEM_LOCK_GRANULAR;
 	}
 

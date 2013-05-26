@@ -12,6 +12,9 @@ CONFIG_OOM=y
 # verbose log level control
 CONFIG_VERBOSE=y
 
+# statistics lock
+CONFIG_SLOCK=n
+
 ifeq ($(CONFIG_DEBUG),y)
   DEBFLAGS = -O -Wall -g -DCONFIG_DEBUG
 endif
@@ -29,6 +32,10 @@ endif
 
 ifeq ($(CONFIG_VERBOSE),y)
   EXTRA_CFLAGS += -DCONFIG_VERBOSE
+endif
+
+ifeq ($(CONFIG_SLOCK),y)
+  EXTRA_CFLAGS += -DCONFIG_SLOCK
 endif
 
 obj-m	+= kmodhelper.o kmemcache.o

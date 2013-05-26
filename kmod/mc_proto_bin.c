@@ -187,10 +187,15 @@ static void bin_touch(conn *c)
 		u32 bodylen = sizeof(rsp->message.body) + (it->nbytes - 2);
 
 		mc_item_update(c->who, it);
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.touch_cmds++;
 		c->who->stats.slab_stats[it->slabs_clsid].touch_hits++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.touch_cmds);
+		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].touch_hits);
+#endif
 
 		if (c->cmd == PROTOCOL_BINARY_CMD_TOUCH) {
 			bodylen -= it->nbytes - 2;
@@ -221,10 +226,15 @@ static void bin_touch(conn *c)
 		/* Remember this command so we can garbage collect it later */
 		c->item = it;
 	} else {
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.touch_cmds++;
 		c->who->stats.touch_misses++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.touch_cmds);
+		ATOMIC64_INC(c->who->stats.touch_misses);
+#endif
 
 		if (c->noreply) {
 			conn_set_state(c, conn_new_cmd);
@@ -279,10 +289,15 @@ static void bin_get(conn *c)
 		u32 bodylen = sizeof(rsp->message.body) + (it->nbytes - 2);
 
 		mc_item_update(c->who, it);
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.get_cmds++;
 		c->who->stats.slab_stats[it->slabs_clsid].get_hits++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.get_cmds);
+		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].get_hits);
+#endif
 
 		if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
 			bodylen += nkey;
@@ -307,10 +322,15 @@ static void bin_get(conn *c)
 		/* Remember this command so we can garbage collect it later */
 		c->item = it;
 	} else {
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.get_cmds++;
 		c->who->stats.get_misses++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.get_cmds);
+		ATOMIC64_INC(c->who->stats.get_misses);
+#endif
 
 		if (c->noreply) {
 			conn_set_state(c, conn_new_cmd);
@@ -529,10 +549,15 @@ static void bin_complete_sasl_auth(conn *c)
 
 	switch(result) {
 	case SASL_OK:
-		bin_write_response(c, "Authenticated", 0, 0, 13);
-		spin_lock(&c->who->stats.lock);
+		bin_write_response(c, s2c_msg[MSG_BIN_AUTHED],
+				0, 0, s2c_len[MSG_BIN_AUTHED]);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.auth_cmds++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.auth_cmds);
+#endif
 		break;
 	case SASL_CONTINUE:
 		bin_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0, outlen);
@@ -545,10 +570,15 @@ static void bin_complete_sasl_auth(conn *c)
 	default:
 		PVERBOSE(0, "unknown sasl response:  %d\n", result);
 		bin_write_error(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, 0);
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.auth_cmds++;
 		c->who->stats.auth_errors++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.auth_cmds);
+		ATOMIC64_INC(c->who->stats.auth_errors);
+#endif
 	}
 
 	kfree(mech);
@@ -716,9 +746,13 @@ static void bin_flush(conn *c)
 	}
 	mc_item_flush_expired();
 
-	spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+	spin_lock(&c->who->slock);
 	c->who->stats.flush_cmds++;
-	spin_unlock(&c->who->stats.lock);
+	spin_unlock(&c->who->slock);
+#else
+	ATOMIC64_INC(c->who->stats.flush_cmds);
+#endif
 
 	bin_write_response(c, NULL, 0, 0, 0);
 }
@@ -744,9 +778,13 @@ static void bin_delete(conn *c)
 	if (it) {
 		u64 cas = ntohll(req->message.header.request.cas);
 		if (cas == 0 || cas == ITEM_get_cas(it)) {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.slab_stats[it->slabs_clsid].delete_hits++;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].delete_hits);
+#endif
 
 			mc_item_unlink(c->who, it);
 			bin_write_response(c, NULL, 0, 0, 0);
@@ -757,9 +795,13 @@ static void bin_delete(conn *c)
 	} else {
 		bin_write_error(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
 
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.delete_misses++;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_INC(c->who->stats.delete_misses);
+#endif
 	}
 }
 
@@ -842,14 +884,21 @@ static void bin_complete_incr(conn *c)
 				bin_write_error(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
 			}
 		} else {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
 				c->who->stats.incr_misses++;
 			} else {
 				c->who->stats.decr_misses++;
 			}
-			spin_unlock(&c->who->stats.lock);
-
+			spin_unlock(&c->who->slock);
+#else
+			if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
+				ATOMIC64_INC(c->who->stats.incr_misses);
+			} else {
+				ATOMIC64_INC(c->who->stats.decr_misses);
+			}
+#endif
 			bin_write_error(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
 		}
 		break;
@@ -866,9 +915,13 @@ static void bin_complete_update(conn *c)
 	store_item_t ret = NOT_STORED;
 	item *it = c->item;
 
-	spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+	spin_lock(&c->who->slock);
 	c->who->stats.slab_stats[it->slabs_clsid].set_cmds++;
-	spin_unlock(&c->who->stats.lock);
+	spin_unlock(&c->who->slock);
+#else
+	ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].set_cmds);
+#endif
 
 	/* We don't actually receive the trailing two characters in the bin
 	 * protocol, so we're going to just set them here */

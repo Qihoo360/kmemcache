@@ -156,13 +156,21 @@ delta_result_t mc_do_add_delta(conn *c, const char *key,
 		}
 	}
 
-	spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+	spin_lock(&c->who->slock);
 	if (incr) {
 		c->who->stats.slab_stats[it->slabs_clsid].incr_hits++;
 	} else {
 		c->who->stats.slab_stats[it->slabs_clsid].decr_hits++;
 	}
-	spin_unlock(&c->who->stats.lock);
+	spin_unlock(&c->who->slock);
+#else
+	if (incr) {
+		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].incr_hits);
+	} else {
+		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].decr_hits);
+	}
+#endif
 
 	snprintf(buf, INCR_MAX_STORAGE_LEN, "%llu", (unsigned long long)value);
 	res = strlen(buf);
@@ -185,9 +193,12 @@ delta_result_t mc_do_add_delta(conn *c, const char *key,
 		 */
 		ITEM_set_cas(it, (settings.use_cas) ? ITEM_get_cas(new_it) : 0);
 		mc_do_item_remove(new_it);       /* release our reference */
-	} else { /* replace in-place */
-		/* When changing the value without replacing the item, we
-		 * need to update the CAS on the existing item. */
+	} else { 
+		/*
+		 * replace in-place 
+		 * When changing the value without replacing the item, we
+		 * need to update the CAS on the existing item.
+		 */
 		mutex_lock(&cache_lock); /* FIXME */
 		ITEM_set_cas(it, (settings.use_cas) ? mc_get_cas_id() : 0);
 		mutex_unlock(&cache_lock);
@@ -230,23 +241,35 @@ store_item_t mc_do_store_item(item *it, int comm, conn* c, u32 hv)
 		if(old_it == NULL) {
 			// LRU expired
 			stored = NOT_FOUND;
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.cas_misses++;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_INC(c->who->stats.cas_misses);
+#endif
 		} else if (ITEM_get_cas(it) == ITEM_get_cas(old_it)) {
 			// cas validates
 			// it and old_it may belong to different classes.
 			// I'm updating the stats for the one that's getting pushed out
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.slab_stats[old_it->slabs_clsid].cas_hits++;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_INC(c->who->stats.slab_stats[old_it->slabs_clsid].cas_hits);
+#endif
 
 			mc_item_replace(old_it, it, hv);
 			stored = STORED;
 		} else {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.slab_stats[old_it->slabs_clsid].cas_badval++;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_INC(c->who->stats.slab_stats[old_it->slabs_clsid].cas_badval);
+#endif
 
 			PVERBOSE(1, "CAS:  failure: expected %llu, got %llu\n",
 				 (unsigned long long)ITEM_get_cas(old_it),
@@ -843,9 +866,13 @@ static try_read_result_t try_read_udp(conn *c)
 			  0, &c->request_addr, &c->request_addr_size);
 	if (res > 8) {
 		unsigned char *buf = (unsigned char *)c->cn_rbuf;
-		spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+		spin_lock(&c->who->slock);
 		c->who->stats.bytes_read += res;
-		spin_unlock(&c->who->stats.lock);
+		spin_unlock(&c->who->slock);
+#else
+		ATOMIC64_ADD(c->who->stats.bytes_read, res);
+#endif
 
 		/* Beginning of UDP packet is the request ID; save it. */
 		c->request_id = buf[0] * 256 + buf[1];
@@ -912,9 +939,13 @@ static try_read_result_t try_read_network(conn *c)
 		avail = c->cn_rsize - c->cn_rbytes;
 		res = mc_recv(c->sock, c->cn_rbuf + c->cn_rbytes, avail);
 		if (res > 0) {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.bytes_read += res;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_ADD(c->who->stats.bytes_read, res);
+#endif
 			gotdata = READ_DATA_RECEIVED;
 			c->cn_rbytes += res;
 			if (res == avail) {
@@ -960,9 +991,13 @@ static transmit_result_t transmit(conn *c)
 
 		res = mc_sendmsg(c->sock, m);
 		if (res > 0) {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.bytes_written += res;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_ADD(c->who->stats.bytes_written, res);
+#endif
 
 			/* 
 			 * We've written some of the data. Remove the completed
@@ -1071,9 +1106,13 @@ more:
 		if (nreqs >= 0) {
 			reset_cmd_handler(c);
 		} else {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.conn_yields++;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_INC(c->who->stats.conn_yields);
+#endif
 
 			if (c->cn_rbytes > 0) {
 				if (update_event(c, EV_WRITE)) {
@@ -1108,9 +1147,13 @@ more:
 		/*  now try reading from the socket */
 		res = mc_recv(c->sock, c->ritem, c->rlbytes);
 		if (res > 0) {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.bytes_read += res;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_ADD(c->who->stats.bytes_read, res);
+#endif
 
 			if (c->cn_rcurr == c->ritem) {
 				c->cn_rcurr += res;
@@ -1162,9 +1205,13 @@ more:
 		res = mc_recv(c->sock, c->cn_rbuf,
 			      c->cn_rsize > c->sbytes ? c->sbytes : c->cn_rsize);
 		if (res > 0) {
-			spin_lock(&c->who->stats.lock);
+#ifdef CONFIG_SLOCK
+			spin_lock(&c->who->slock);
 			c->who->stats.bytes_read += res;
-			spin_unlock(&c->who->stats.lock);
+			spin_unlock(&c->who->slock);
+#else
+			ATOMIC64_ADD(c->who->stats.bytes_read, res);
+#endif
 			c->sbytes -= res;
 			break;
 		}
