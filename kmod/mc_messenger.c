@@ -426,7 +426,7 @@ void mc_requeue_conn(conn *c)
 		if (poll & CONN_WRITE) {
 			goto queue_conn;
 		} else {
-			PRINTK("mc_queue_conn %p ignore EV_WRITE\n", c);
+			PRINFO("mc_queue_conn %p ignore EV_WRITE", c);
 		}
 	}
 
