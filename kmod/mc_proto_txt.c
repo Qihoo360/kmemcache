@@ -739,6 +739,7 @@ static void txt_dispatch_command(conn *c, char *command)
 
 		if (settings.shutdown_command) {
 			conn_set_state(c, conn_closing);
+			shutdown_cmd();
 		} else {
 			OSTRING(c, MSG_SYS_SHUT);
 		}

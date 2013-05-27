@@ -431,6 +431,9 @@ static void main_loop(void)
 					case CN_IDX_INIT_SET:
 						netlink_send_settings(sock, &msg->id);
 						break;
+					case CN_IDX_SHUTDOWN:
+						netlink_send_shutdown(sock, &msg->id);
+						goto close_epoll;
 					default:
 						break;
 					}

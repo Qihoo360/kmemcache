@@ -17,4 +17,6 @@ extern parser_sock_t *sock_info;
 extern int settings_init(void);
 extern void settings_exit(void);
 
+extern void shutdown_cmd(void);
+
 #endif /* __UPARAM_H */
