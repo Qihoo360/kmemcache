@@ -212,7 +212,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 				return;
 			}
 
-			it = mc_item_get(c->who, key, nkey);
+			it = mc_item_get(key, nkey);
 			if (settings.detail_enabled) {
 				mc_stats_prefix_record_get(key, nkey, NULL != it);
 			}
@@ -221,7 +221,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 					ret = realloc_ilistbuf(&c->_ilistbuf,
 							c->cn_isize * 2, c->cn_isize);
 					if (ret) {
-						mc_item_remove(c->who, it);
+						mc_item_remove(it);
 						break;
 					}
 				}
@@ -240,7 +240,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 						ret = realloc_slistbuf(&c->_slistbuf,
 								c->cn_suffixsize * 2, c->cn_suffixsize);
 						if (ret) {
-							mc_item_remove(c->who, it);
+							mc_item_remove(it);
 							break;
 						}
 					}
@@ -248,7 +248,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 					suffix = _suffix_new();
 					if (suffix == NULL) {
 						OSTRING(c, MSG_SER_OOM_CAS);
-						mc_item_remove(c->who, it);
+						mc_item_remove(it);
 						return;
 					}
 					*(c->cn_suffixlist + i) = suffix;
@@ -259,14 +259,14 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 					    mc_add_iov(c, ITEM_suffix(it), it->nsuffix - 2) ||
 					    mc_add_iov(c, suffix, suffix_len) ||
 					    mc_add_iov(c, ITEM_data(it), it->nbytes)) {
-						mc_item_remove(c->who, it);
+						mc_item_remove(it);
 						break;
 					}
 				} else {
 					if (mc_add_iov(c, "VALUE ", 6) ||
 					    mc_add_iov(c, ITEM_key(it), it->nkey) ||
 					    mc_add_iov(c, ITEM_suffix(it), it->nsuffix + it->nbytes)) {
-						mc_item_remove(c->who, it);
+						mc_item_remove(it);
 						break;
 					}
 				}
@@ -283,7 +283,7 @@ static void txt_get(conn *c, token_t *tokens, size_t ntokens, int return_cas)
 				ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].get_hits);
 				ATOMIC64_INC(c->who->stats.get_cmds);
 #endif
-				mc_item_update(c->who, it);
+				mc_item_update(it);
 				*(c->cn_ilist + i) = it;
 				i++;
 
@@ -412,10 +412,10 @@ static void txt_update(conn *c, token_t *tokens, size_t ntokens, int comm, int h
 		/* Avoid stale data persisting in cache because we failed alloc.
 		* Unacceptable for SET. Anywhere else too? */
 		if (comm == NREAD_SET) {
-			it = mc_item_get(c->who, key, nkey);
+			it = mc_item_get(key, nkey);
 			if (it) {
-				mc_item_unlink(c->who, it);
-				mc_item_remove(c->who, it);
+				mc_item_unlink(it);
+				mc_item_remove(it);
 			}
 		}
 
@@ -452,9 +452,9 @@ static void txt_touch(conn *c, token_t *tokens, size_t ntokens)
 		return;
 	}
 
-	it = mc_item_touch(c->who, key, nkey, realtime(exptime_int));
+	it = mc_item_touch(key, nkey, realtime(exptime_int));
 	if (it) {
-		mc_item_update(c->who, it);
+		mc_item_update(it);
 #ifdef CONFIG_SLOCK
 		spin_lock(&c->who->slock);
 		c->who->stats.touch_cmds++;
@@ -466,7 +466,7 @@ static void txt_touch(conn *c, token_t *tokens, size_t ntokens)
 #endif
 
 		OSTRING(c, MSG_TXT_TOUCHED);
-		mc_item_remove(c->who, it);
+		mc_item_remove(it);
 	} else {
 #ifdef CONFIG_SLOCK
 		spin_lock(&c->who->slock);
@@ -503,7 +503,7 @@ static void txt_arithmetic(conn *c, token_t *tokens, size_t ntokens, int incr)
 		return;
 	}
 
-	switch(mc_add_delta(c->who, c, key, nkey, incr, delta, temp, NULL)) {
+	switch(mc_add_delta(c, key, nkey, incr, delta, temp, NULL)) {
 	case OK:
 		mc_out_string(c, temp, strlen(temp));
 		break;
@@ -567,7 +567,7 @@ static void txt_delete(conn *c, token_t *tokens, size_t ntokens)
 		mc_stats_prefix_record_delete(key, nkey);
 	}
 
-	it = mc_item_get(c->who, key, nkey);
+	it = mc_item_get(key, nkey);
 	if (it) {
 #ifdef CONFIG_SLOCK
 		spin_lock(&c->who->slock);
@@ -577,8 +577,8 @@ static void txt_delete(conn *c, token_t *tokens, size_t ntokens)
 		ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].delete_hits);
 #endif
 
-		mc_item_unlink(c->who,it);
-		mc_item_remove(c->who, it);      /* release our reference */
+		mc_item_unlink(it);
+		mc_item_remove(it);      /* release our reference */
 		OSTRING(c, MSG_TXT_DELETED);
 	} else {
 #ifdef CONFIG_SLOCK
@@ -812,7 +812,7 @@ static void txt_complete_nread(conn *c)
 	if (strncmp(ITEM_data(it) + it->nbytes - 2, "\r\n", 2)) {
 		OSTRING(c, MSG_TXT_BAD_CHUNK);
 	} else {
-		ret = mc_store_item(c->who, it, comm, c);
+		ret = mc_store_item(it, comm, c);
 
 		switch (ret) {
 		case STORED:
@@ -834,7 +834,7 @@ static void txt_complete_nread(conn *c)
 	}
 
 	/* release the c->item reference */
-	mc_item_remove(c->who, c->item);
+	mc_item_remove(c->item);
 	c->item = 0;
 }
 

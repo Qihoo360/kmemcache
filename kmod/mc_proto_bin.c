@@ -180,13 +180,13 @@ static void bin_touch(conn *c)
 	}
 #endif
 
-	it = mc_item_touch(c->who, key, nkey, realtime(exptime));
+	it = mc_item_touch(key, nkey, realtime(exptime));
 	if (it) {
 		/* the length has two unnecessary bytes ("\r\n") */
 		u16 keylen = 0;
 		u32 bodylen = sizeof(rsp->message.body) + (it->nbytes - 2);
 
-		mc_item_update(c->who, it);
+		mc_item_update(it);
 #ifdef CONFIG_SLOCK
 		spin_lock(&c->who->slock);
 		c->who->stats.touch_cmds++;
@@ -282,13 +282,13 @@ static void bin_get(conn *c)
 	}
 #endif
 
-	it = mc_item_get(c->who, key, nkey);
+	it = mc_item_get(key, nkey);
 	if (it) {
 		/* the length has two unnecessary bytes ("\r\n") */
 		u16 keylen = 0;
 		u32 bodylen = sizeof(rsp->message.body) + (it->nbytes - 2);
 
-		mc_item_update(c->who, it);
+		mc_item_update(it);
 #ifdef CONFIG_SLOCK
 		spin_lock(&c->who->slock);
 		c->who->stats.get_cmds++;
@@ -543,7 +543,7 @@ static void bin_complete_sasl_auth(conn *c)
 		break;
 	}
 
-	mc_item_unlink(c->who, c->item);
+	mc_item_unlink(c->item);
 
 	PVERBOSE(0, "sasl result code:  %d\n", result);
 
@@ -638,10 +638,10 @@ static void bin_update(conn *c)
 		/* Avoid stale data persisting in cache because we failed alloc.
 		 * Unacceptable for SET. Anywhere else too? */
 		if (c->cmd == PROTOCOL_BINARY_CMD_SET) {
-			it = mc_item_get(c->who, key, nkey);
+			it = mc_item_get(key, nkey);
 			if (it) {
-				mc_item_unlink(c->who, it);
-				mc_item_remove(c->who, it);
+				mc_item_unlink(it);
+				mc_item_remove(it);
 			}
 		}
 
@@ -774,7 +774,7 @@ static void bin_delete(conn *c)
 		mc_stats_prefix_record_delete(key, nkey);
 	}
 
-	it = mc_item_get(c->who, key, nkey);
+	it = mc_item_get(key, nkey);
 	if (it) {
 		u64 cas = ntohll(req->message.header.request.cas);
 		if (cas == 0 || cas == ITEM_get_cas(it)) {
@@ -786,12 +786,12 @@ static void bin_delete(conn *c)
 			ATOMIC64_INC(c->who->stats.slab_stats[it->slabs_clsid].delete_hits);
 #endif
 
-			mc_item_unlink(c->who, it);
+			mc_item_unlink(it);
 			bin_write_response(c, NULL, 0, 0, 0);
 		} else {
 			bin_write_error(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, 0);
 		}
-		mc_item_remove(c->who, it);	/* release our reference */
+		mc_item_remove(it);	/* release our reference */
 	} else {
 		bin_write_error(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0);
 
@@ -844,7 +844,7 @@ static void bin_complete_incr(conn *c)
 		cas = c->bin_header.request.cas;
 	}
 
-	switch(mc_add_delta(c->who, c, key, nkey,
+	switch(mc_add_delta(c, key, nkey,
 			    c->cmd == PROTOCOL_BINARY_CMD_INCREMENT,
 			    req->message.body.delta, tmpbuf, &cas)) {
 	case OK:
@@ -872,14 +872,14 @@ static void bin_complete_incr(conn *c)
 				snprintf(ITEM_data(it), INCR_MAX_STORAGE_LEN, "%llu",
 					 (unsigned long long)req->message.body.initial);
 
-				if (mc_store_item(c->who, it, NREAD_ADD, c)) {
+				if (mc_store_item(it, NREAD_ADD, c)) {
 					c->cas = ITEM_get_cas(it);
 					bin_write_response(c, &rsp->message.body, 0, 0,
 							   sizeof(rsp->message.body.value));
 				} else {
 					bin_write_error(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED, 0);
 				}
-				mc_item_remove(c->who, it);         /* release our reference */
+				mc_item_remove(it);         /* release our reference */
 			} else {
 				bin_write_error(c, PROTOCOL_BINARY_RESPONSE_ENOMEM, 0);
 			}
@@ -928,7 +928,7 @@ static void bin_complete_update(conn *c)
 	*(ITEM_data(it) + it->nbytes - 2) = '\r';
 	*(ITEM_data(it) + it->nbytes - 1) = '\n';
 
-	ret = mc_store_item(c->who, it, c->cmd, c);
+	ret = mc_store_item(it, c->cmd, c);
 
 	switch (ret) {
 	case STORED:
@@ -954,7 +954,7 @@ static void bin_complete_update(conn *c)
 	}
 
 	/* release the c->item reference */
-	mc_item_remove(c->who, c->item);
+	mc_item_remove(c->item);
 	c->item = 0;
 }
 

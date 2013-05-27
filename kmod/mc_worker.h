@@ -73,7 +73,6 @@ extern struct kmem_cache *conn_req_cachep;
 /* items lock for slaved */
 struct lock_xchg_req {
 	item_lock_t type;
-	struct worker_storage *who;
 	struct work_struct work;
 };
 extern struct kmem_cache *lock_xchg_req_cachep;
@@ -101,20 +100,19 @@ static inline void free_lock_xchg_req(void *obj)
 item*	mc_item_alloc(char *key, size_t nkey, int flags, rel_time_t exptime, int nbytes);
 int	mc_item_cachedump(unsigned int slabs_clsid, unsigned int limit, struct buffer *buf);
 void	mc_item_flush_expired(void);
-item*	mc_item_get(struct worker_storage *worker, const char *key, size_t nkey);
-item*	mc_item_touch(struct worker_storage *worker, const char *key, size_t nkey, u32 exptime);
-int	mc_item_link(struct worker_storage *worker, item *it);
-void	mc_item_remove(struct worker_storage *worker, item *it);
+item*	mc_item_get(const char *key, size_t nkey);
+item*	mc_item_touch(const char *key, size_t nkey, u32 exptime);
+int	mc_item_link(item *it);
+void	mc_item_remove(item *it);
 int	mc_item_replace(item *it, item *new_it, u32 hv);
 void	mc_item_stats(add_stat_fn f, void *c);
 void	mc_item_stats_totals(add_stat_fn f, void *c);
 void	mc_item_stats_sizes(add_stat_fn f, void *c);
-void	mc_item_unlink(struct worker_storage *worker, item *it);
-void	mc_item_update(struct worker_storage *worker, item *it);
-delta_result_t mc_add_delta(struct worker_storage *worker, conn *c,
-			    const char *key, size_t nkey,
+void	mc_item_unlink(item *it);
+void	mc_item_update(item *it);
+delta_result_t mc_add_delta(conn *c, const char *key, size_t nkey,
 			    int incr, s64 delta, char *buf, u64 *cas);
-store_item_t mc_store_item(struct worker_storage *worker, item *item, int comm, conn *c);
+store_item_t mc_store_item(item *item, int comm, conn *c);
 void	mc_item_lock_global(void);
 void	mc_item_unlock_global(void);
 void*	mc_item_trylock(u32 hv);

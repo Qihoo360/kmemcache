@@ -98,9 +98,12 @@ static void item_lock_exit(void)
 	free_pages((unsigned long)item_locks, order);
 }
 
-static void mc_item_lock(struct worker_storage *worker, u32 hv)
+static void mc_item_lock(u32 hv)
 {
-	int lock_type = worker->lock_type;
+	int lock_type;
+
+	lock_type = per_cpu_ptr(storage, get_cpu())->lock_type;
+	put_cpu();
 
 	if (likely(lock_type == ITEM_LOCK_GRANULAR)) {
 		u32 idx = (hv & hashmask(hashpower)) % item_lock_count;
@@ -110,9 +113,12 @@ static void mc_item_lock(struct worker_storage *worker, u32 hv)
 	}
 }
 
-static void mc_item_unlock(struct worker_storage *worker, u32 hv)
+static void mc_item_unlock(u32 hv)
 {
-	int lock_type = worker->lock_type;
+	int lock_type;
+
+	lock_type = per_cpu_ptr(storage, get_cpu())->lock_type;
+	put_cpu();
 
 	if (likely(lock_type == ITEM_LOCK_GRANULAR)) {
 		u32 idx = (hv & hashmask(hashpower)) % item_lock_count;
@@ -175,7 +181,6 @@ renew:
 		}
 
 		rq->type = type;
-		rq->who  = per_cpu_ptr(storage, cpu);
 		INIT_WORK(&rq->work, mc_lock_xchg_work);
 
 requeue:
@@ -211,30 +216,28 @@ item* mc_item_alloc(char *key, size_t nkey, int flags,
  * Get an item if it hasn't been marked as expired,
  * lazy-expiring as needed.
  */
-item* mc_item_get(struct worker_storage *worker,
-		  const char *key, const size_t nkey)
+item* mc_item_get(const char *key, const size_t nkey)
 {
 	item *it;
 	u32 hv;
 
 	hv = hash(key, nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	it = mc_do_item_get(key, nkey, hv);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 
 	return it;
 }
 
-item* mc_item_touch(struct worker_storage *worker,
-		    const char *key, size_t nkey, u32 exptime)
+item* mc_item_touch(const char *key, size_t nkey, u32 exptime)
 {
 	item *it;
 	u32 hv;
 
 	hv = hash(key, nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	it = mc_do_item_touch(key, nkey, exptime, hv);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 
 	return it;
 }
@@ -242,15 +245,15 @@ item* mc_item_touch(struct worker_storage *worker,
 /**
  * Link an item into the LRU and hashtable.
  */
-int mc_item_link(struct worker_storage *worker, item *item)
+int mc_item_link(item *item)
 {
 	int ret;
 	u32 hv;
 
 	hv = hash(ITEM_key(item), item->nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	ret = mc_do_item_link(item, hv);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 
 	return ret;
 }
@@ -259,14 +262,14 @@ int mc_item_link(struct worker_storage *worker, item *item)
  * Decrement the reference count on an item and
  * add it to the freelist if needed. 
  */
-void mc_item_remove(struct worker_storage *worker, item *item)
+void mc_item_remove(item *item)
 {
 	u32 hv;
 
 	hv = hash(ITEM_key(item), item->nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	mc_do_item_remove(item);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 }
 
 /**
@@ -282,43 +285,42 @@ int mc_item_replace(item *old_it, item *new_it, u32 hv)
 /**
  * Unlink an item from the LRU and hashtable.
  */
-void mc_item_unlink(struct worker_storage *worker, item *item)
+void mc_item_unlink(item *item)
 {
 	u32 hv;
 
 	hv = hash(ITEM_key(item), item->nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	mc_do_item_unlink(item, hv);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 }
 
 /**
  * Move an item to the back of the LRU queue.
  */
-void mc_item_update(struct worker_storage *worker, item *item)
+void mc_item_update(item *item)
 {
 	u32 hv;
 
 	hv = hash(ITEM_key(item), item->nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	mc_do_item_update(item);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 }
 
 /**
  * Do arithmetic on a numeric item value.
  */
-delta_result_t mc_add_delta(struct worker_storage *worker, conn *c,
-			    const char *key, size_t nkey,
+delta_result_t mc_add_delta(conn *c, const char *key, size_t nkey,
 			    int incr, s64 delta, char *buf, u64 *cas)
 {
 	delta_result_t ret;
 	u32 hv;
 
 	hv = hash(key, nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	ret = mc_do_add_delta(c, key, nkey, incr, delta, buf, cas, hv);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 
 	return ret;
 }
@@ -326,16 +328,15 @@ delta_result_t mc_add_delta(struct worker_storage *worker, conn *c,
 /**
  * Store an item in the cache (high level, obeys set/add/replace semantics)
  */
-store_item_t mc_store_item(struct worker_storage *worker, item *item,
-			   int comm, conn *c)
+store_item_t mc_store_item(item *item, int comm, conn *c)
 {
 	store_item_t ret;
 	u32 hv;
 
 	hv = hash(ITEM_key(item), item->nkey, 0);
-	mc_item_lock(worker, hv);
+	mc_item_lock(hv);
 	ret = mc_do_store_item(item, comm, c, hv);
-	mc_item_unlock(worker, hv);
+	mc_item_unlock(hv);
 
 	return ret;
 }
@@ -584,10 +585,13 @@ void mc_slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out)
 
 static void mc_lock_xchg_work(struct work_struct *work)
 {
+	struct worker_storage *stor;
 	struct lock_xchg_req *rq =
 		container_of(work, struct lock_xchg_req, work);
 
-	rq->who->lock_type = rq->type;
+	stor = per_cpu_ptr(storage, get_cpu());
+	stor->lock_type = rq->type;
+	put_cpu();
 	REGISTER_THREAD_INITIALIZED();
 
 	free_lock_xchg_req(rq);

@@ -97,7 +97,7 @@ static inline void reset_cmd_handler(conn *c)
 	c->cmd = -1;
 	c->substate = bin_no_state;
 	if(c->item != NULL) {
-		mc_item_remove(c->who, c->item);
+		mc_item_remove(c->item);
 		c->item = NULL;
 	}
 	mc_conn_shrink(c);
@@ -1301,7 +1301,7 @@ more:
 			if (c->state == conn_mwrite) {
 				while (c->cn_ileft > 0) {
 					item *it = *(c->cn_icurr);
-					mc_item_remove(c->who, it);
+					mc_item_remove(it);
 					c->cn_icurr++;
 					c->cn_ileft--;
 				}

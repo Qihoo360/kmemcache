@@ -177,12 +177,12 @@ void mc_conn_close(conn *c)
 void mc_conn_cleanup(conn *c)
 {
 	if (c->item) {
-		mc_item_remove(c->who, c->item);
+		mc_item_remove(c->item);
 		c->item = NULL;
 	}
 	if (c->cn_ileft) {
 		for (; c->cn_ileft > 0;) {
-			mc_item_remove(c->who, *c->cn_icurr);
+			mc_item_remove(*c->cn_icurr);
 
 			c->cn_ileft--;
 			c->cn_icurr++;
