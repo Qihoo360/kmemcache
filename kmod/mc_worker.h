@@ -32,11 +32,18 @@ struct thread_stats {
 	struct slab_stats slab_stats[MAX_SLAB_CLASSES];
 };
 
-#ifndef CONFIG_SLOCK
 #define ATOMIC64_SET(ptr, val)	atomic64_set((atomic64_t *)&(ptr), (val))
 #define ATOMIC64_INC(ptr)	atomic64_inc((atomic64_t *)&(ptr))
+#define ATOMIC64_DEC(ptr)	atomic64_dec((atomic64_t *)&(ptr))
 #define ATOMIC64_ADD(ptr, val)	atomic64_add((val), (atomic64_t *)&(ptr))
-#endif
+#define ATOMIC64_SUB(ptr, val)	atomic64_sub((val), (atomic64_t *)&(ptr))
+#define ATOMIC64_READ(ptr)	atomic64_read((atomic64_t *)&(ptr))
+#define ATOMIC32_SET(ptr, val)	atomic_set((atomic_t *)&(ptr), (val))
+#define ATOMIC32_INC(ptr)	atomic_inc((atomic_t *)&(ptr))
+#define ATOMIC32_DEC(ptr)	atomic_dec((atomic_t *)&(ptr))
+#define ATOMIC32_ADD(ptr, val)	atomic_add((val), (atomic_t *)&(ptr))
+#define ATOMIC32_SUB(ptr, val)	atomic_sub((val), (atomic_t *)&(ptr))
+#define ATOMIC32_READ(ptr)	atomic_read((atomic_t *)&(ptr))
 
 /* slaved info storage */
 struct worker_storage {

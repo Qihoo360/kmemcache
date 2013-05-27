@@ -468,9 +468,35 @@ void mc_server_stats(add_stat_fn f, conn *c)
 	mc_threadlocal_stats_aggregate(thread_stats);
 	mc_slab_stats_aggregate(thread_stats, &slab_stats);
 
+#ifdef CONFIG_GSLOCK
 	spin_lock(&stats_lock);
 	memcpy(&_stats, &stats, sizeof(_stats));
 	spin_unlock(&stats_lock);
+#else
+	_stats.curr_bytes	= ATOMIC64_READ(stats.curr_bytes);
+	_stats.rejected_conns	= ATOMIC64_READ(stats.rejected_conns);
+	_stats.get_cmds		= ATOMIC64_READ(stats.get_cmds);
+	_stats.set_cmds		= ATOMIC64_READ(stats.set_cmds);
+	_stats.touch_cmds	= ATOMIC64_READ(stats.touch_cmds);
+	_stats.get_hits		= ATOMIC64_READ(stats.get_hits);
+	_stats.get_misses	= ATOMIC64_READ(stats.get_misses);
+	_stats.touch_hits	= ATOMIC64_READ(stats.touch_hits);
+	_stats.touch_misses	= ATOMIC64_READ(stats.touch_misses);
+	_stats.evictions	= ATOMIC64_READ(stats.evictions);
+	_stats.reclaimed	= ATOMIC64_READ(stats.reclaimed);
+	_stats.listen_disabled_num= ATOMIC64_READ(stats.listen_disabled_num);
+	_stats.hash_bytes	= ATOMIC64_READ(stats.hash_bytes);
+	_stats.expired_unfetched= ATOMIC64_READ(stats.expired_unfetched);
+	_stats.evicted_unfetched= ATOMIC64_READ(stats.evicted_unfetched);
+	_stats.slabs_moved	= ATOMIC64_READ(stats.slabs_moved);
+	_stats.started		= ATOMIC32_READ(stats.started);
+	_stats.curr_items	= ATOMIC32_READ(stats.curr_items);
+	_stats.total_items	= ATOMIC32_READ(stats.total_items);
+	_stats.curr_conns	= ATOMIC32_READ(stats.curr_conns);
+	_stats.total_conns	= ATOMIC32_READ(stats.total_conns);
+	_stats.conn_structs	= ATOMIC32_READ(stats.conn_structs);
+	_stats.hash_power_level	= ATOMIC32_READ(stats.hash_power_level);
+#endif
 
 	APPEND_STAT("pid", "%lu", (long)pid);
 	APPEND_STAT("uptime", "%u", now);
@@ -507,15 +533,27 @@ void mc_server_stats(add_stat_fn f, conn *c)
 	APPEND_STAT("bytes_read", "%llu", (unsigned long long)thread_stats->bytes_read);
 	APPEND_STAT("bytes_written", "%llu", (unsigned long long)thread_stats->bytes_written);
 	APPEND_STAT("limit_maxbytes", "%llu", (unsigned long long)settings.maxbytes);
+#ifdef CONFIG_GSLOCK
 	APPEND_STAT("accepting_conns", "%u", _stats.accepting_conns);
+#else
+	APPEND_STAT("accepting_conns", "%u", test_bit(STATS_ACCEPT, &stats.flags));
+#endif
 	APPEND_STAT("listen_disabled_num", "%llu", (unsigned long long)_stats.listen_disabled_num);
 	APPEND_STAT("threads", "%d", num_possible_cpus());
 	APPEND_STAT("conn_yields", "%llu", (unsigned long long)thread_stats->conn_yields);
 	APPEND_STAT("hash_power_level", "%u", _stats.hash_power_level);
 	APPEND_STAT("hash_bytes", "%llu", (unsigned long long)_stats.hash_bytes);
+#ifdef CONFIG_GSLOCK
 	APPEND_STAT("hash_is_expanding", "%u", _stats.hash_is_expanding);
+#else
+	APPEND_STAT("hash_is_expanding", "%u", test_bit(STATS_HASH_EXP, &stats.flags));
+#endif
 	if (settings.slab_reassign) {
+#ifdef CONFIG_GSLOCK
 		APPEND_STAT("slab_reassign_running", "%u", _stats.slab_reassign_running);
+#else
+		APPEND_STAT("slab_reassign_running", "%u", test_bit(STATS_SLAB_RES, &stats.flags));
+#endif
 		APPEND_STAT("slabs_moved", "%llu", _stats.slabs_moved);
 	}
 

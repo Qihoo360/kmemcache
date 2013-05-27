@@ -73,16 +73,25 @@ void mc_accept_new_conns(int enable)
 		return;
 	if (enable) {
 		set_bit(ACCEPT_NEW, &dsper.flags);
+#ifdef CONFIG_GSLOCK
 		spin_lock(&stats_lock);
 		stats.accepting_conns = 1;
 		spin_unlock(&stats_lock);
+#else
+		set_bit(STATS_ACCEPT, &stats.flags);
+#endif
 	} else {
 		clear_bit(ACCEPT_NEW, &dsper.flags);
 
+#ifdef CONFIG_GSLOCK
 		spin_lock(&stats_lock);
 		stats.accepting_conns = 0;
 		stats.listen_disabled_num++;
 		spin_unlock(&stats_lock);
+#else
+		clear_bit(STATS_ACCEPT, &stats.flags);
+		ATOMIC64_INC(stats.listen_disabled_num);
+#endif
 	}
 
 	spin_lock(&dsper.lock);
@@ -173,9 +182,13 @@ static int mc_accept_one(struct serve_sock *ss)
 		if (mc_s2clog(nsock, MSG_SYS_CONNS)) {
 			PRINTK("serve sends connection msg error\n");
 		}
+#ifdef CONFIG_GSLOCK
 		spin_lock(&stats_lock);
 		stats.rejected_conns++;
 		spin_unlock(&stats_lock);
+#else
+		ATOMIC64_INC(stats.rejected_conns);
+#endif
 		goto err_out;
 	} else {
 		ret = mc_dispatch_conn_new(nsock, conn_new_cmd,

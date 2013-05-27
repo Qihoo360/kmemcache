@@ -338,11 +338,17 @@ int mc_get_stats(const char *stat_type, int nkey, add_stat_fn f, void *c)
 			u32 total_items;
 			u64 curr_bytes;
 
+#ifdef CONFIG_GSLOCK
 			spin_lock(&stats_lock);
 			curr_items = stats.curr_items;
 			curr_bytes = stats.curr_bytes;
 			total_items= stats.total_items;
 			spin_unlock(&stats_lock);
+#else
+			curr_items = ATOMIC32_READ(stats.curr_items);
+			curr_bytes = ATOMIC64_READ(stats.curr_bytes);
+			total_items= ATOMIC32_READ(stats.total_items);
+#endif
 
 			APPEND_STAT("bytes", "%llu", (unsigned long long)curr_bytes);
 			APPEND_STAT("curr_items", "%u", curr_items);
@@ -655,9 +661,13 @@ static int mc_slab_rebalance_start(void)
 	mutex_unlock(&slabs_lock);
 	mutex_unlock(&cache_lock);
 
+#ifdef CONFIG_GSLOCK
 	spin_lock(&stats_lock);
 	stats.slab_reassign_running = 1;
 	spin_unlock(&stats_lock);
+#else
+	set_bit(STATS_SLAB_RES, &stats.flags);
+#endif
 
 	return 0;
 
@@ -837,10 +847,15 @@ static void mc_slab_rebalance_finish(void)
 	mutex_unlock(&slabs_lock);
 	mutex_unlock(&cache_lock);
 
+#ifdef CONFIG_GSLOCK
 	spin_lock(&stats_lock);
 	stats.slab_reassign_running = 0;
 	stats.slabs_moved++;
 	spin_unlock(&stats_lock);
+#else
+	clear_bit(STATS_SLAB_RES, &stats.flags);
+	ATOMIC64_INC(stats.slabs_moved);
+#endif
 
 	PVERBOSE(1, "finished a slab move\n");
 }

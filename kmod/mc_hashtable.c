@@ -58,10 +58,15 @@ int hash_init(int power)
 		BUFFER_PTR(&primary_hts, primary_hashtable);
 	}
 
+#ifdef CONFIG_GSLOCK
 	spin_lock(&stats_lock);
 	stats.hash_power_level = hashpower;
 	stats.hash_bytes = bytes;
 	spin_unlock(&stats_lock);
+#else
+	ATOMIC32_SET(stats.hash_power_level, hashpower);
+	ATOMIC64_SET(stats.hash_bytes, bytes);
+#endif
 
 out:
 	return ret;
@@ -143,11 +148,17 @@ static void mc_hash_expand(void)
 		set_bit(EXPANDING, &hashflags);
 		expand_bucket = 0;
 
+#ifdef CONFIG_GSLOCK
 		spin_lock(&stats_lock);
 		stats.hash_power_level = hashpower;
 		stats.hash_bytes += bytes;
 		stats.hash_is_expanding = 1;
 		spin_unlock(&stats_lock);
+#else
+		ATOMIC32_SET(stats.hash_power_level, hashpower);
+		ATOMIC64_ADD(stats.hash_bytes, bytes);
+		set_bit(STATS_HASH_EXP, &stats.flags);
+#endif
 	} else {
 		/* bad news, but we can keep running */
 		PRINTK("hash table expansion error\n");
@@ -250,11 +261,18 @@ static int mc_hash_thread(void *ignore)
 				clear_bit(SEXPANDING, &hashflags);
 				free_buffer(&old_hts);
 
+#ifdef CONFIG_GSLOCK
 				spin_lock(&stats_lock);
 				stats.hash_bytes -= hashsize(hashpower - 1) *
 						    sizeof(void *);
 				stats.hash_is_expanding = 0;
 				spin_unlock(&stats_lock);
+#else
+				ATOMIC64_SUB(stats.hash_bytes,
+					     hashsize(hashpower - 1) *
+					     sizeof(void *));
+				clear_bit(STATS_HASH_EXP, &stats.flags);
+#endif
 				PVERBOSE(1, "hash table expansion done\n");
 			}
 		}

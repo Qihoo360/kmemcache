@@ -13,8 +13,10 @@ struct stats stats;
 
 struct kmem_cache *prefix_cachep;
 
+#ifdef CONFIG_GSLOCK
 /* lock for global stats */
 DEFINE_SPINLOCK(stats_lock);
+#endif
 
 /* lock for prefix_stats */
 static DEFINE_MUTEX(prefix_stats_lock);
@@ -204,7 +206,11 @@ out:
 int stats_init(void)
 {
 	/* assuming we start in this state. */
+#ifdef CONFIG_GSLOCK
 	stats.accepting_conns = 1;
+#else
+	set_bit(STATS_ACCEPT, &stats.flags);
+#endif
 
 	return 0;
 }
@@ -218,6 +224,7 @@ void stats_exit(void)
 
 void mc_stats_reset(void)
 {
+#ifdef CONFIG_GSLOCK
 	spin_lock(&stats_lock);
 	stats.total_items = 0;
 	stats.total_conns = 0;
@@ -226,6 +233,14 @@ void mc_stats_reset(void)
 	stats.reclaimed = 0;
 	stats.listen_disabled_num = 0;
 	spin_unlock(&stats_lock);
+#else
+	ATOMIC32_SET(stats.total_items, 0);
+	ATOMIC32_SET(stats.total_conns, 0);
+	ATOMIC64_SET(stats.rejected_conns, 0);
+	ATOMIC64_SET(stats.evictions, 0);
+	ATOMIC64_SET(stats.reclaimed, 0);
+	ATOMIC64_SET(stats.listen_disabled_num, 0);
+#endif
 
 	mutex_lock(&prefix_stats_lock);
 	mc_stats_prefix_clear();
