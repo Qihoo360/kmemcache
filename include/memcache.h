@@ -4,7 +4,7 @@
 #include <linux/types.h>
 
 /* time relative to server start. */
-typedef unsigned long rel_time_t;
+typedef unsigned int rel_time_t;
 
 typedef enum {
 	local_transport,

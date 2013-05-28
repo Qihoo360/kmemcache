@@ -28,7 +28,7 @@ static struct cn_id cache_bh_id = {
 };
 
 volatile rel_time_t current_time;
-rel_time_t process_started __read_mostly;
+time_t process_started __read_mostly;
 
 rel_time_t realtime(rel_time_t exptime)
 {
@@ -75,7 +75,8 @@ static void mc_timer_update(unsigned long arg)
 
 static int timer_init(void)
 {
-	current_time = 0;
+	process_started = get_seconds() - 2;
+	current_time = 1;
 
 	init_timer(&time_updater.timer);
 

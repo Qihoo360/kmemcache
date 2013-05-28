@@ -301,7 +301,7 @@ typedef struct conn conn;
 
 extern volatile rel_time_t current_time;
 extern struct stats stats;
-extern rel_time_t process_started;
+extern time_t process_started;
 extern unsigned int hashpower;
 extern struct dispatcher_thread dispatcher;
 

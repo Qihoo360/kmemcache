@@ -529,14 +529,14 @@ void mc_do_item_stats(add_stat_fn f, void *c)
 				continue;
 			}
 			APPEND_NUM_FMT_STAT(fmt, i, "number", "%u", sizes[i]);
-			APPEND_NUM_FMT_STAT(fmt, i, "age", "%lu",
+			APPEND_NUM_FMT_STAT(fmt, i, "age", "%u",
 					    current_time - tails[i]->time);
 			APPEND_NUM_FMT_STAT(fmt, i, "evicted",
 					    "%llu", (unsigned long long)itemstats[i].evicted);
 			APPEND_NUM_FMT_STAT(fmt, i, "evicted_nonzero",
 					    "%llu", (unsigned long long)itemstats[i].evicted_nonzero);
 			APPEND_NUM_FMT_STAT(fmt, i, "evicted_time",
-					    "%lu", itemstats[i].evicted_time);
+					    "%u", itemstats[i].evicted_time);
 			APPEND_NUM_FMT_STAT(fmt, i, "outofmemory",
 					    "%llu", (unsigned long long)itemstats[i].outofmemory);
 			APPEND_NUM_FMT_STAT(fmt, i, "tailrepairs",
