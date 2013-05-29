@@ -1093,10 +1093,13 @@ int start_slab_thread(void)
 {
 	int ret = 0;
 
+	mutex_init(&slab_rebal.lock);
+	init_waitqueue_head(&slab_rebal.wq);
+	init_waitqueue_head(&slab_mten.wq);
+
 	if (!settings.slab_reassign)
 		goto out;
 	
-	init_waitqueue_head(&slab_mten.wq);
 	slab_mten.tsk = kthread_run(mc_slab_maintenance,
 				    NULL, "kmcslabm");
 	if (IS_ERR(slab_mten.tsk)) {
@@ -1105,8 +1108,6 @@ int start_slab_thread(void)
 		goto out;
 	}
 
-	mutex_init(&slab_rebal.lock);
-	init_waitqueue_head(&slab_rebal.wq);
 	slab_rebal.tsk = kthread_run(mc_slab_rebalance,
 				     NULL, "kmcslabr");
 	if (IS_ERR(slab_rebal.tsk)) {

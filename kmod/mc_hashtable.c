@@ -230,6 +230,8 @@ void mc_hash_delete(const char *key, size_t nkey, u32 hv)
 static int mc_hash_thread(void *ignore)
 {
 	set_freezable();
+	mc_slabs_rebalancer_pause();
+
 	while (!test_bit(ZOMBIE, &hashflags)) {
 		int ii = 0;
 

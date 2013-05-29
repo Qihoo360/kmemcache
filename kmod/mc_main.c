@@ -201,17 +201,17 @@ static int __kmemcache_bh_init(void *unused)
 		PRINTK("init workers error\n");
 		goto del_hash;
 	}
-	if ((ret = start_hash_thread())) {
-		PRINTK("init hashtable kthread error\n");
-		goto del_workers;
-	}
 	if ((ret = start_slab_thread())) {
 		PRINTK("init slab kthread error\n");
-		goto del_hash_thread;
+		goto del_workers;
+	}
+	if ((ret = start_hash_thread())) {
+		PRINTK("init hashtable kthread error\n");
+		goto del_slab_thread;
 	}
 	if ((ret = timer_init())) {
 		PRINTK("init timer error\n");
-		goto del_slab_thread;
+		goto del_hash_thread;
 	}
 	if ((ret = dispatcher_init())) {
 		PRINTK("init dispatcher error\n");
@@ -230,11 +230,10 @@ del_dispatcher:
 	dispatcher_exit();
 del_timer:
 	timer_exit();
-del_slab_thread:
-	if (settings.slab_reassign)
-		stop_slab_thread();
 del_hash_thread:
 	stop_hash_thread();
+del_slab_thread:
+	stop_slab_thread();
 del_workers:
 	workers_exit();
 del_hash:
@@ -305,8 +304,8 @@ static void __exit kmemcache_exit(void)
 	if (cache_bh_status) {
 		dispatcher_exit();
 		timer_exit();
-		stop_slab_thread();
 		stop_hash_thread();
+		stop_slab_thread();
 		workers_exit();
 		hash_exit();
 		slabs_exit();
