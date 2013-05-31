@@ -19,6 +19,8 @@
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "0.4"
 
+#define VERSION_STRING "VERSION 0.4"
+
 /* Version number of package */
 #define VERSION "0.4"
 

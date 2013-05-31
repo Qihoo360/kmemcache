@@ -12,7 +12,7 @@ char* s2c_msg[MSG_MAX] __read_mostly = {
 	MSG_ENTRY(MSG_SYS_BADCLS,	"BADCLASS invalid src or dst class id"),
 	MSG_ENTRY(MSG_SYS_NOSPACE,	"NOSPARE source class has no spare pages"),
 	MSG_ENTRY(MSG_SYS_SAMECLS,	"SAME src and dst class are identical"),
-	MSG_ENTRY(MSG_SYS_VERSION,	PACKAGE_STRING),
+	MSG_ENTRY(MSG_SYS_VERSION,	VERSION_STRING),
 
 	MSG_ENTRY(MSG_SER_OOM,		"SERVER_ERROR out of memory"),
 	MSG_ENTRY(MSG_SER_OOM_STAT,	"SERVER_ERROR out of memory writing stats"),
