@@ -51,7 +51,7 @@ struct slistbuf {
 #define EV_WRITE	3	/* write event, note used */
 #define EV_RDWR		4	/* 1 for READ, 0 for WRITE */
 #define EV_BUSY		5	/* in process */
-#define EV_CLOSED	7	/* udp closed */
+#define EV_CLOSE	7	/* sock closing */
 #define EV_DEAD		9	/* about to free */
 
 #define CONN_READ	(POLLIN | POLLRDNORM | POLLRDBAND)

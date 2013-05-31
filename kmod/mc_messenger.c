@@ -353,12 +353,16 @@ static void mc_worker_state_change(struct sock *sk)
 	PRINFO("mc_worker_state_change on %p state=%d", c, sk->sk_state);
 
 	switch (sk->sk_state) {
-	case TCP_CLOSE:
-	case TCP_CLOSE_WAIT:
-		mc_queue_conn(c);
-		break;
 	case TCP_ESTABLISHED:
 		mc_queue_conn(c);
+		break;
+	case TCP_FIN_WAIT1:
+	case TCP_CLOSE:
+	case TCP_CLOSE_WAIT:
+		if (!test_and_set_bit(EV_CLOSE, &c->event))
+			mc_queue_conn(c);
+		break;
+	default:
 		break;
 	}
 }
