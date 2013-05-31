@@ -158,7 +158,6 @@ void mc_conn_close(conn *c)
 
 	if (!IS_UDP(c->transport)) {
 		set_bit(EV_DEAD, &c->event);
-		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
 		sock_release(c->sock);
 		c->sock = NULL;
 	}

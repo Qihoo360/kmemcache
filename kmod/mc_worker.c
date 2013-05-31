@@ -791,7 +791,6 @@ void workers_exit(void)
 	}
 
 	list_for_each_entry_safe(c, n, &head, list) {
-		c->sock->ops->shutdown(c->sock, SHUT_RDWR);
 		sock_release(c->sock);
 		mc_conn_put(c);
 	}

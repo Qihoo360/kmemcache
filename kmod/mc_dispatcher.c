@@ -711,7 +711,6 @@ static void server_exit(void)
 	list_for_each_entry_safe(ss, n, &dsper.list, list) {
 		set_bit(SOCK_CLOSE, &ss->state);
 		flush_work(&ss->work);
-		ss->sock->ops->shutdown(ss->sock, SHUT_RDWR);
 		sock_release(ss->sock);
 		ss->sock = NULL;
 		list_del(&ss->list);
