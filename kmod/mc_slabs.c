@@ -992,7 +992,7 @@ static int mc_slab_rebalance(void *ignore)
 			 * Stuck waiting for some items to unlock, so slow down
 			 * a bit to give them a change to free up.
 			 */
-			msleep(1000);
+			msleep(1);
 		}
 		mutex_unlock(&slab_rebal.lock);
 	}

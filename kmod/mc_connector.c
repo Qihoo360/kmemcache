@@ -17,7 +17,9 @@ static struct kmem_cache *cn_cachep;
 #endif
 
 struct cn_queue {
+#ifdef CONFIG_CN_CACHE
 	struct workqueue_struct *workqueue;
+#endif
 
 	struct list_head list;
 	spinlock_t lock;
@@ -278,8 +280,11 @@ static void mc_nl_callback(struct sk_buff *_skb)
 		if (entry->id.idx == msg->id.idx &&
 		    entry->id.val == msg->id.val) {
 			entry->callback.skb = skb;
-			if (!queue_work(queue->workqueue,
-					&entry->work)) {
+#ifdef CONFIG_CN_CACHE
+			if (!queue_work(queue->workqueue, &entry->work)) {
+#else
+			if (!schedule_work(&entry->work)) {
+#endif
 				spin_unlock_bh(&queue->lock);
 				entry->callback.skb = NULL;
 				PRINTK("may be dead lock, check callback\n");
@@ -333,20 +338,24 @@ int connector_init(void)
 		ret = -ENOMEM;
 		goto free_netlink;
 	}
+#ifdef CONFIG_CN_CACHE
 	cn.queue->workqueue = create_singlethread_workqueue("kmccn");
 	if (!cn.queue->workqueue) {
 		PRINTK("create connetctor queue error\n");
 		ret = -ENOMEM;
 		goto free_queue;
 	}
+#endif
 	INIT_LIST_HEAD(&cn.queue->list);
 	spin_lock_init(&cn.queue->lock);
 
 	return 0;
 
+#ifdef CONFIG_CN_CACHE
 free_queue:
 	kfree(cn.queue);
 	cn.queue = NULL;
+#endif
 free_netlink:
 	netlink_kernel_release(cn.sock);
 	cn.sock = NULL;
@@ -363,6 +372,7 @@ void connector_exit(void)
 	struct cn_entry *pos, *n;
 	struct cn_queue *queue = cn.queue;
 
+retry:
 	spin_lock_bh(&queue->lock);
 	list_for_each_entry_safe(pos, n, &queue->list, list_entry) {
 		if (pos->flags != ENTRY_RUNNING) {
@@ -372,16 +382,17 @@ void connector_exit(void)
 #else
 			kfree(pos);
 #endif
+		} else {
+			spin_unlock_bh(&queue->lock);
+			flush_work(&pos->work);
+			goto retry;
 		}
 	}
 	spin_unlock_bh(&queue->lock);
 
-	while (!list_empty(&queue->list)) {
-		flush_workqueue(queue->workqueue);
-		msleep(1000);
-	}
-
+#ifdef CONFIG_CN_CACHE
 	destroy_workqueue(queue->workqueue);
+#endif
 	kfree(queue);
 	netlink_kernel_release(cn.sock);
 #ifdef CONFIG_CN_CACHE

@@ -48,9 +48,8 @@ struct slab_rebal {
 	int s_clsid;
 	int d_clsid;
 	int busy_items;
-
-	u8 done;
-	u8 signal;
+	unsigned int done:16;
+	unsigned int signal:16;
 };
 
 extern struct slab_rebal slab_rebal;
