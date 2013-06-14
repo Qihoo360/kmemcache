@@ -7,6 +7,7 @@
 #include <linux/freezer.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
+#include <linux/timer.h>
 #include <asm/atomic.h>
 
 #include "mc.h"
@@ -602,11 +603,7 @@ void mc_slabs_adjust_mem_requested(unsigned int id, size_t old, size_t ntotal)
 
 struct slab_rebal slab_rebal;
 
-static struct {
-	unsigned long flag;
-	struct task_struct *tsk;
-	wait_queue_head_t wq;
-} slab_mten;
+static struct timer_list slab_timer;
 
 static int mc_slab_rebalance_start(void)
 {
@@ -933,28 +930,19 @@ static int mc_slab_automove_decision(int *src, int *dst)
 	return res;
 }
 
-void mc_wakeup_slabs_mten(void)
-{
-	if (slab_mten.tsk)
-		wake_up_interruptible(&slab_mten.wq);
-}
-
 /**
- * Slab rebalancer thread.
+ * slab rebalance detector 
  * Does not use spinlocks since it is not timing sensiteve. Burn less CPU and
  * goto to sleep if locks are contended
  */
-static int mc_slab_maintenance(void *ignore)
+static void mc_slab_maintenance(unsigned long ignore)
 {
 	int src = 0, dest = 0;
+	unsigned long mod = 5 * HZ;
 
-	set_freezable();
-	while (1) {
-		wait_event_freezable(slab_mten.wq,
-				     settings.slab_automove == 1 ||
-				     kthread_should_stop());
-		if (kthread_should_stop())
-			break;
+	if (unlikely(!test_bit(SLAB_TIMER_ACTIVE, &slab_rebal.flags)))
+		return;
+	if (settings.slab_automove == 1) {
 		if (mc_slab_automove_decision(&src, &dest) == 1) {
 			/* 
 			 * Blind to the return codes. It will
@@ -962,10 +950,11 @@ static int mc_slab_maintenance(void *ignore)
 			 */
 			mc_slabs_reassign(src, dest);
 		}
-		msleep(1000);
+		mod = HZ;
 	}
 
-	return 0;
+	slab_timer.expires = jiffies + mod;
+	add_timer(&slab_timer);
 }
 
 /**
@@ -1076,50 +1065,29 @@ int mc_slabs_reassign(int src, int dst)
 	return ret;
 }
 
-/**
- * If we hold this lock, rebalancer can't wake up or move
- */
-void mc_slabs_rebalancer_pause(void)
-{
-	mutex_lock(&slab_rebal.lock);
-}
-
-void mc_slabs_rebalancer_resume(void)
-{
-	mutex_unlock(&slab_rebal.lock);
-}
-
 int start_slab_thread(void)
 {
 	int ret = 0;
 
-	mutex_init(&slab_rebal.lock);
-	init_waitqueue_head(&slab_rebal.wq);
-	init_waitqueue_head(&slab_mten.wq);
-
 	if (!settings.slab_reassign)
 		goto out;
-	
-	slab_mten.tsk = kthread_run(mc_slab_maintenance,
-				    NULL, "kmcslabm");
-	if (IS_ERR(slab_mten.tsk)) {
-		PRINTK("create slab maintenance thread error\n");
-		ret = -ENOMEM;
-		goto out;
-	}
 
+	mutex_init(&slab_rebal.lock);
+	init_waitqueue_head(&slab_rebal.wq);
 	slab_rebal.tsk = kthread_run(mc_slab_rebalance,
-				     NULL, "kmcslabr");
+				     NULL, "kmcbalance");
 	if (IS_ERR(slab_rebal.tsk)) {
 		PRINTK("create slab rebalance thread error\n");
 		ret = -ENOMEM;
-		goto out_rebl_err;
+		goto out;
 	}
 
-	return 0;
+	init_timer(&slab_timer);
+	slab_timer.expires = jiffies + 5 * HZ;
+	slab_timer.function= mc_slab_maintenance;
+	set_bit(SLAB_TIMER_ACTIVE, &slab_rebal.flags);
+	add_timer(&slab_timer);
 
-out_rebl_err:
-	kthread_stop(slab_mten.tsk);
 out:
 	return ret;
 }
@@ -1128,7 +1096,8 @@ void stop_slab_thread(void)
 {
 	if (!settings.slab_reassign)
 		return;
-	kthread_stop(slab_mten.tsk);
+	clear_bit(SLAB_TIMER_ACTIVE, &slab_rebal.flags);
+	del_timer_sync(&slab_timer);
 	kthread_stop(slab_rebal.tsk);
 }
 

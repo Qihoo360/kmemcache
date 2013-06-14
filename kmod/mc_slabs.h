@@ -34,18 +34,21 @@ extern void mc_slabs_stats(add_stat_fn f, void *c);
 #define	REASSIGN_NOSPACE	0x3
 #define	REASSIGN_SRC_DST_SAME	0x4
 
+#define SLAB_TIMER_ACTIVE	0
+
 struct slab_rebal {
-	unsigned long flag;
+	unsigned long flags;
 	struct task_struct *tsk;
 	wait_queue_head_t wq;
-
 	struct mutex lock;
+
 	void *slab_start;
 	void *slab_end;
 	void *slab_pos;
 	int s_clsid;
 	int d_clsid;
 	int busy_items;
+
 	u8 done;
 	u8 signal;
 };
@@ -57,9 +60,16 @@ extern void stop_slab_thread(void);
 
 extern int mc_slabs_reassign(int src, int dst);
 
-extern void mc_wakeup_slabs_mten(void);
+static inline void mc_slabs_rebalancer_pause(void)
+{
+	if (settings.slab_reassign)
+		mutex_lock(&slab_rebal.lock);
+}
 
-extern void mc_slabs_rebalancer_pause(void);
-extern void mc_slabs_rebalancer_resume(void);
+static inline void mc_slabs_rebalancer_resume(void)
+{
+	if (settings.slab_reassign)
+		mutex_unlock(&slab_rebal.lock);
+}
 
 #endif /* __MC_SLAB_H */
