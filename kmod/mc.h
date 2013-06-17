@@ -181,38 +181,6 @@ typedef enum {
 } delta_result_t;
 
 /* global ststs */
-#ifdef CONFIG_GSLOCK
-struct stats {
-	u32 curr_items;
-	u32 total_items;
-	u64 curr_bytes;
-	u32 curr_conns;
-	u32 total_conns;
-	u64 rejected_conns;
-	u32 conn_structs;
-	u64 get_cmds;
-	u64 set_cmds;
-	u64 touch_cmds;
-	u64 get_hits;
-	u64 get_misses;
-	u64 touch_hits;
-	u64 touch_misses;
-	u64 evictions;
-	u64 reclaimed;
-	rel_time_t started;	/* when the process was started */
-	u8  accepting_conns;	/* whether we are currently accepting */
-	u64 listen_disabled_num;
-	u32 hash_power_level;	/* Better hope it's not over 9000 */
-	u64 hash_bytes;		/* size used for hash tables */
-	u8  hash_is_expanding;	/* If the hash table is being expanded */
-	u64 expired_unfetched;	/* items reclaimed but never touched */
-	u64 evicted_unfetched;	/* items evicted but never touched */
-	u8  slab_reassign_running; /* slab reassign in progress */
-	u64 slabs_moved;	/* times slabs were moved around */
-};
-
-extern spinlock_t stats_lock;
-#else
 struct stats {
 	u64 curr_bytes;
 	u64 rejected_conns;
@@ -244,7 +212,6 @@ struct stats {
 	u32 conn_structs;
 	u32 hash_power_level;	/* Better hope it's not over 9000 */
 };
-#endif
 
 typedef struct prefix_stats prefix_stats_t;
 struct prefix_stats {

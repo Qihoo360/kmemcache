@@ -318,17 +318,9 @@ int mc_do_item_link(item *it, u32 hv)
 	it->it_flags |= ITEM_LINKED;
 	it->time = current_time;
 
-#ifdef CONFIG_GSLOCK
-	spin_lock(&stats_lock);
-	stats.curr_bytes += ITEM_ntotal(it);
-	stats.curr_items += 1;
-	stats.total_items += 1;
-	spin_unlock(&stats_lock);
-#else
 	ATOMIC64_ADD(stats.curr_bytes, ITEM_ntotal(it));
 	ATOMIC64_INC(stats.curr_items);
 	ATOMIC64_INC(stats.total_items);
-#endif
 
 	/* allocate a new CAS ID on link */
 	ITEM_set_cas(it, (settings.use_cas) ? mc_get_cas_id() : 0);
@@ -346,15 +338,8 @@ void mc_do_item_unlink(item *it, u32 hv)
 	if (it->it_flags & ITEM_LINKED) {
 		it->it_flags &= ~ITEM_LINKED;
 
-#ifdef CONFIG_GSLOCK
-		spin_lock(&stats_lock);
-		stats.curr_bytes -= ITEM_ntotal(it);
-		stats.curr_items -= 1;
-		spin_unlock(&stats_lock);
-#else
 		ATOMIC64_SUB(stats.curr_bytes, ITEM_ntotal(it));
 		ATOMIC32_DEC(stats.curr_items);
-#endif
 
 		mc_hash_delete(ITEM_key(it), it->nkey, hv);
 		mc_item_unlink_q(it);
@@ -369,15 +354,8 @@ void mc_do_item_unlink_nolock(item *it, u32 hv)
 	if (it->it_flags & ITEM_LINKED) {
 		it->it_flags &= ~ITEM_LINKED;
 
-#ifdef CONFIG_GSLOCK
-		spin_lock(&stats_lock);
-		stats.curr_bytes -= ITEM_ntotal(it);
-		stats.curr_items -= 1;
-		spin_unlock(&stats_lock);
-#else
 		ATOMIC64_SUB(stats.curr_bytes, ITEM_ntotal(it));
 		ATOMIC32_DEC(stats.curr_items);
-#endif
 
 		mc_hash_delete(ITEM_key(it), it->nkey, hv);
 		mc_item_unlink_q(it);

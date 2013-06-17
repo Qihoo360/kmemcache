@@ -131,17 +131,9 @@ conn* mc_conn_new(struct conn_req *rq)
 	spin_unlock(&stor->lock);
 	put_cpu();
 
-#ifdef CONFIG_GSLOCK
-	spin_lock(&stats_lock);
-        stats.conn_structs++;
-	stats.curr_conns++;
-	stats.total_conns++;
-	spin_unlock(&stats_lock);
-#else
 	ATOMIC32_INC(stats.conn_structs);
 	ATOMIC32_INC(stats.curr_conns);
 	ATOMIC32_INC(stats.total_conns);
-#endif
 
 	return c;
 
@@ -164,13 +156,7 @@ void mc_conn_close(conn *c)
 
 	mc_accept_new_conns(1);
 
-#ifdef CONFIG_GSLOCK
-	spin_lock(&stats_lock);
-	stats.curr_conns--;
-	spin_unlock(&stats_lock);
-#else
 	ATOMIC32_DEC(stats.curr_conns);
-#endif
 }
 
 void mc_conn_cleanup(conn *c)

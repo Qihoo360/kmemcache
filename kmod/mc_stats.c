@@ -13,11 +13,6 @@ struct stats stats;
 
 struct kmem_cache *prefix_cachep;
 
-#ifdef CONFIG_GSLOCK
-/* lock for global stats */
-DEFINE_SPINLOCK(stats_lock);
-#endif
-
 /* lock for prefix_stats */
 static DEFINE_MUTEX(prefix_stats_lock);
 

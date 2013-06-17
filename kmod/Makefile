@@ -15,9 +15,6 @@ CONFIG_VERBOSE=y
 # thread statistics lock
 CONFIG_SLOCK=n
 
-# global statistics lock
-CONFIG_GSLOCK=n
-
 ifeq ($(CONFIG_DEBUG),y)
   DEBFLAGS = -O -Wall -g -DCONFIG_DEBUG
 endif
@@ -39,10 +36,6 @@ endif
 
 ifeq ($(CONFIG_SLOCK),y)
   EXTRA_CFLAGS += -DCONFIG_SLOCK
-endif
-
-ifeq ($(CONFIG_GSLOCK),y)
-  EXTRA_CFLAGS += -DCONFIG_GSLOCK
 endif
 
 obj-m	+= kmodhelper.o kmemcache.o
