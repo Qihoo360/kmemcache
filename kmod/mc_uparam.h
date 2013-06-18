@@ -14,8 +14,13 @@ typedef struct {
 /* used only once, then free */
 extern parser_sock_t *sock_info;
 
+/* initialize command from umemcached */
+extern struct cn_id cache_bh_id;
+
 extern int settings_init(void);
 extern void settings_exit(void);
+
+extern void report_cache_bh_status(bool success);
 
 extern void shutdown_cmd(void);
 

@@ -20,13 +20,6 @@ unsigned long slabsize __read_mostly = 95;
 module_param(slabsize, ulong, 0);
 MODULE_PARM_DESC(slabsize, "percent of totalram that slabs could use");
 
-/* initialize command from umemcached */
-static int cache_bh_status;
-static struct cn_id cache_bh_id = {
-	.idx = CN_IDX_CACHE_BH,
-	.val = CN_VAL_CACHE_BH
-};
-
 volatile rel_time_t current_time;
 time_t process_started __read_mostly;
 
@@ -180,7 +173,7 @@ static int __kmemcache_bh_init(void *unused)
 	}
 	if ((ret = caches_info_init())) {
 		PRINTK("init caches error\n");
-		goto del_set;
+		goto out;
 	}
 	if ((ret = stats_init())) {
 		PRINTK("init stats error\n");
@@ -222,9 +215,7 @@ static int __kmemcache_bh_init(void *unused)
 		goto del_dispatcher;
 	}
 
-	cache_bh_status = 1;
-	PRINTK("start server success\n");
-	return 0;
+	goto out;
 
 del_dispatcher:
 	dispatcher_exit();
@@ -244,16 +235,19 @@ del_stats:
 	stats_exit();
 del_caches:
 	caches_info_exit();
-del_set:
-	settings_exit();
 out:
-	PRINTK("start server error\n");
-	return ret;
-}
 
-static inline void unregister_kmemcache_bh(void)
-{
-	mc_del_callback(&cache_bh_id, 0);
+	settings_exit();
+	if (ret) {
+		sock_info = ERR_PTR(-1);
+		PRINTK("start server error\n");
+	} else {
+		sock_info = ERR_PTR(1);
+		PRINTK("start server success\n");
+	}
+	report_cache_bh_status(ret == 0);
+
+	return ret;
 }
 
 static void* kmemcache_bh_init(struct cn_msg *msg,
@@ -267,6 +261,11 @@ static void* kmemcache_bh_init(struct cn_msg *msg,
 	}
 
 	return NULL;
+}
+
+static inline void unregister_kmemcache_bh(void)
+{
+	mc_del_callback(&cache_bh_id, 0);
 }
 
 static inline int register_kmemcache_bh(void)
@@ -301,7 +300,7 @@ out:
 
 static void __exit kmemcache_exit(void)
 {
-	if (cache_bh_status) {
+	if (PTR_ERR(sock_info) == 1) {
 		dispatcher_exit();
 		timer_exit();
 		stop_hash_thread();
@@ -314,7 +313,7 @@ static void __exit kmemcache_exit(void)
 		oom_exit();
 
 		PRINTK("stop server success\n");
-	} else {
+	} else if (sock_info == NULL) {
 		unregister_kmemcache_bh();
 	}
 	connector_exit();

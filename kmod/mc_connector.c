@@ -226,6 +226,11 @@ static void* __send_msg_sync(struct cn_msg *msg, unsigned long timeout)
 		goto out;
 	}
 
+	if (unlikely(!timeout)) {
+		entry->flags = ENTRY_FINISHED;
+		return 0;
+	}
+
 	ret = wait_for_completion_timeout(&entry->comp, timeout);
 	if (!ret) {
 		PRINTK("__send_msg_sync timeout\n");
@@ -241,6 +246,12 @@ nlmsg_failure:
 out:
 	return ERR_PTR(ret);
 }
+
+void* mc_send_msg(struct cn_msg *msg)
+{
+	return __send_msg_sync(msg, 0);
+}
+EXPORT_SYMBOL(mc_send_msg);
 
 void* mc_send_msg_sync(struct cn_msg *msg)
 {

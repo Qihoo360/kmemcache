@@ -25,6 +25,8 @@
 
 #include "umemcached.h"
 
+//#define enable_daemon	1
+
 struct settings settings;
 
 static void usage(void)
@@ -42,7 +44,9 @@ static void usage(void)
            "              used. You may specify multiple addresses separated by comma\n"
            "              or by using -l multiple times\n"
 
+#ifdef enable_daemon
            "-d            run as a daemon\n"
+#endif
            "-r            maximize core file limit\n"
            "-m <num>      max memory to use for items in megabytes (default: 64 MB)\n"
            "-M            return error on memory exhausted (rather than removing items)\n"
@@ -352,6 +356,18 @@ int netlink_send(int sock, struct cn_msg *msg)
 	return ret;
 }
 
+static void process_cache_bh_status(struct cn_msg *msg)
+{
+	cache_status_t *sta;
+
+	sta = (cache_status_t *)msg->data;
+	if (sta) {
+		printf("start kmemcache server success\n");
+	} else {
+		printf("start kmemcache server failed\n");
+	}
+}
+
 #define MAX_EVENTS	1
 static void main_loop(void)
 {
@@ -431,6 +447,9 @@ static void main_loop(void)
 					case CN_IDX_INIT_SET:
 						netlink_send_settings(sock, &msg->id);
 						break;
+					case CN_IDX_CACHE_BH_STATUS:
+						process_cache_bh_status(msg);
+						goto close_epoll;
 					case CN_IDX_SHUTDOWN:
 						netlink_send_shutdown(sock, &msg->id);
 						goto close_epoll;
@@ -453,7 +472,9 @@ close_sock:
 int main(int argc, char *argv[])
 {
 	int c;
+#ifdef enable_daemon
 	int do_daemonize= 0;
+#endif
 	int maxcore	= 0;
 	struct rlimit rlim;
 	char unit	= '\0';
@@ -499,7 +520,9 @@ int main(int argc, char *argv[])
 		"hi"	/* help, licence info */
 		"r"	/* maximize core file limit */
 		"v"	/* verbose */
+#ifdef enable_daemon
 		"d"	/* daemon mode */
+#endif
 		"l:"	/* interface to listen on */
 		"f:"	/* factor? */
 		"n:"	/* minimum space allocated for key+value+flags */
@@ -568,9 +591,11 @@ int main(int argc, char *argv[])
 				settings.inter= strdup(optarg);
 			}
 			break;
+#ifdef enable_daemon
 		case 'd':
 			do_daemonize = 1;
 			break;
+#endif
 		case 'r':
 			maxcore = 1;
 			break;
@@ -803,6 +828,7 @@ int main(int argc, char *argv[])
 	//	init_sasl();
 	}
 
+#ifdef enable_daemon
 	/* daemonize if requested */
 	/* if we want to ensure our ability to dump core, don't chdir to / */
 	if (do_daemonize) {
@@ -814,6 +840,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
+#endif
 
 	main_loop();
 

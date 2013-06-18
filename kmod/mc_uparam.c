@@ -4,8 +4,19 @@
 
 #include "mc.h"
 
+struct cn_id cache_bh_id = {
+	.idx = CN_IDX_CACHE_BH,
+	.val = CN_VAL_CACHE_BH
+};
+
 struct settings settings __read_mostly;
-parser_sock_t *sock_info;
+parser_sock_t *sock_info = NULL;
+
+static void* default_callback(struct cn_msg *msg,
+			      struct netlink_skb_parms *pm)
+{
+	return (void *)1;
+}
 
 static void* settings_init_callback(struct cn_msg *msg,
 				    struct netlink_skb_parms *pm)
@@ -64,6 +75,38 @@ void settings_exit(void)
 		kfree(sock_info);
 }
 
+void report_cache_bh_status(bool success)
+{
+#define CACHE_BH_STATUS	(sizeof(struct cn_msg) + sizeof(cache_status_t))
+
+	int ret = 0;
+	struct cn_msg *msg;
+	cache_status_t *sta;
+	char buf[CACHE_BH_STATUS];
+
+	msg = (struct cn_msg *)buf;
+	sta = (cache_status_t *)msg->data;
+
+	msg->id.idx = CN_IDX_CACHE_BH_STATUS;
+	msg->id.val = mc_get_unique_val();
+	msg->len    = sizeof(cache_status_t);
+	sta->status = success;
+
+	ret = mc_add_callback(&msg->id, default_callback, 0);
+	if (unlikely(ret)) {
+		PRINTK("add report cache bh callback error\n");
+		goto out;
+	}
+	if (IS_ERR(mc_send_msg(msg))) {
+		PRINTK("send cache bh status error\n");
+	}
+
+	mc_del_callback(&msg->id, 0);
+out:
+	mc_put_unique_val(msg->id.val);
+#undef CACHE_BH_STATUS
+}
+
 static void try_shutdown(void)
 {
 	char *envp[] = {
@@ -81,11 +124,6 @@ static void try_shutdown(void)
 	call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
 }
 
-static void* shutdown_callback(struct cn_msg *msg, struct netlink_skb_parms *pm)
-{
-	return ERR_PTR(1);
-}
-
 void shutdown_cmd(void)
 {
 	int ret;
@@ -95,7 +133,7 @@ void shutdown_cmd(void)
 	msg.id.val = mc_get_unique_val();
 	msg.len	= 0;
 
-	ret = mc_add_callback(&msg.id, shutdown_callback, 1);
+	ret = mc_add_callback(&msg.id, default_callback, 1);
 	if (unlikely(ret)) {
 		PRINTK("add shutdown callback error\n");
 		goto out;

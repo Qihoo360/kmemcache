@@ -20,6 +20,10 @@ typedef enum {
 	negotiating_prot
 } protocol_t;
 
+typedef struct {
+	int status;
+} cache_status_t;
+
 #define MAX_VERBOSITY_LEVEL 2
 #define DEFAULT_HASH_BULK_MOVE	1
 #define DEFAULT_SLAB_BULK_CHECK	1

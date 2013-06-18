@@ -10,8 +10,14 @@
  *   connector_init
  *     mc_get_unique_val
  *     mc_add_callback(xx, xx, 1)
- *     mc_send_msg_*
+ *     mc_send_msg_sync/mc_send_msg_timeout
  *     mc_del_callback(xx, 1)
+ *     mc_put_unique_val
+ *          ...
+ *     mc_get_unique_val
+ *     mc_add_callback(xx, xx, 0)
+ *     mc_send_msg
+ *     mc_del_callback(xx, 0)
  *     mc_put_unique_val
  *          ...
  *     mc_get_unique_val
@@ -45,6 +51,7 @@
 #define CN_IDX_SASL_SER_START	0x13
 #define CN_IDX_SASL_SER_STEP	0x14
 #define CN_IDX_SASL_GET_PROP	0x15
+#define CN_IDX_CACHE_BH_STATUS	0x30
 #define CN_IDX_SHUTDOWN		0x50
 
 #define CN_VAL_INIT		0x1
@@ -102,6 +109,7 @@ extern u32 mc_get_unique_val(void);
 extern void mc_put_unique_val(u32 val);
 extern int mc_add_callback(struct cn_id *id, cn_callback_fn *f, int sync);
 extern void mc_del_callback(struct cn_id *id, int sync);
+extern void* mc_send_msg(struct cn_msg *msg);
 extern void* mc_send_msg_sync(struct cn_msg *msg);
 extern void* mc_send_msg_timeout(struct cn_msg *msg, unsigned long timeout);
 

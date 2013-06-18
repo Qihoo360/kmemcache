@@ -676,8 +676,6 @@ static int server_init(void)
 		ret = server_inet_init();
 	}
 
-	kfree(sock_info);
-	sock_info = NULL;
 	return ret;
 }
 
