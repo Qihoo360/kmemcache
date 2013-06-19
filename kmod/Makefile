@@ -38,7 +38,9 @@ ifeq ($(CONFIG_SLOCK),y)
   EXTRA_CFLAGS += -DCONFIG_SLOCK
 endif
 
-obj-m	+= kmodhelper.o kmemcache.o
+obj-m	+= kmctest.o kmemcache.o
+
+kmctest-y := mc_strops.o kmodtest.o
 
 kmemcache-y :=	mc_strops.o	\
 		mc_buffer.o	\

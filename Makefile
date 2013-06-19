@@ -7,6 +7,7 @@ all: utils module
 .PHONY: utils
 utils:
 	$(MAKE) -C user PWD=$(shell pwd)/user all
+	$(MAKE) -C test PWD=$(shell pwd)/test all
 
 .PHONY: module
 module:
@@ -14,6 +15,7 @@ module:
 
 clean:
 	$(MAKE) -C user clean
+	$(MAKE) -C test clean
 	$(MAKE) -C kmod clean
 
 install:
