@@ -33,7 +33,7 @@ Building, Running & Testing
 	[root@jgli]# make
 	[root@jgli]# insmod kmod/kmemcache.ko
 	[root@jgli]# user/umemcached -h
-	[root@jgli]# user/umemcached -p 11213 -d
+	[root@jgli]# user/umemcached -p 11213
 	[root@jgli]# apt-get install libmemcached
 	[root@jgli]# memslap --servers=localhost:11213
 
