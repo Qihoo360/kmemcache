@@ -361,7 +361,7 @@ static void process_cache_bh_status(struct cn_msg *msg)
 	cache_status_t *sta;
 
 	sta = (cache_status_t *)msg->data;
-	if (sta) {
+	if (sta->status) {
 		printf("start kmemcache server success\n");
 	} else {
 		printf("start kmemcache server failed\n");

@@ -239,10 +239,10 @@ out:
 
 	settings_exit();
 	if (ret) {
-		sock_info = ERR_PTR(-1);
+		sock_info = (void *)-1;
 		PRINTK("start server error\n");
 	} else {
-		sock_info = ERR_PTR(1);
+		sock_info = (void *)1;
 		PRINTK("start server success\n");
 	}
 	report_cache_bh_status(ret == 0);
@@ -300,7 +300,7 @@ out:
 
 static void __exit kmemcache_exit(void)
 {
-	if (PTR_ERR(sock_info) == 1) {
+	if (sock_info == (void *)1) {
 		dispatcher_exit();
 		timer_exit();
 		stop_hash_thread();
