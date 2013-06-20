@@ -228,7 +228,7 @@ static void* __send_msg_sync(struct cn_msg *msg, unsigned long timeout)
 
 	if (unlikely(!timeout)) {
 		entry->flags = ENTRY_FINISHED;
-		return 0;
+		return NULL;
 	}
 
 	ret = wait_for_completion_timeout(&entry->comp, timeout);

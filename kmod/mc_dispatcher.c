@@ -667,7 +667,8 @@ static int server_init(void)
 {
 	int ret = 0;
 
-	BUG_ON(!sock_info);
+	if (unlikely(!sock_info))
+		return -EFAULT;
 
 	if (sock_info->flags & UNIX_SOCK) {
 		ret = server_socket_unix((char *)sock_info->data,

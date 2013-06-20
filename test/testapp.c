@@ -233,6 +233,32 @@ static enum test_return test_safe_strtol(void) {
     return TEST_PASS;
 }
 
+static void close_terminal(void)
+{
+	int fd;
+
+	if ((fd = open("/dev/null", O_RDWR, 0)) != -1) {
+		if(dup2(fd, STDIN_FILENO) < 0) {
+			perror("dup2 stdin");
+			return;
+		}
+		if(dup2(fd, STDOUT_FILENO) < 0) {
+			perror("dup2 stdout");
+			return;
+		}
+		if(dup2(fd, STDERR_FILENO) < 0) {
+			perror("dup2 stderr");
+			return;
+		}
+		if (fd > STDERR_FILENO) {
+			if(close(fd) < 0) {
+				perror("close");
+				return;
+			}
+		}
+	}
+}
+
 static void insert_kmod(void)
 {
 	pid_t pid = fork();
@@ -318,6 +344,7 @@ static pid_t start_server(in_port_t *port_out, int timeout) {
 #endif
         argv[arg++] = NULL;
 	insert_kmod();
+	close_terminal();
         assert(execv(argv[0], argv) != -1);
     } else {
     	int stat;
@@ -356,7 +383,7 @@ static pid_t start_server(in_port_t *port_out, int timeout) {
 
 static enum test_return test_issue_44(void) {
     in_port_t port;
-    pid_t pid = start_server(&port, 15);
+    start_server(&port, 15);
     remove_kmod();
     return TEST_PASS;
 }
@@ -599,7 +626,6 @@ static enum test_return shutdown_memcached_server(void) {
 
     /* We set server_pid to -1 so that we don't later call kill() */
     //if (kill(server_pid, 0) == 0) {
-        remove_kmod();
         server_pid = -1;
     //}
 
