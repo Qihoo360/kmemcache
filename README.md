@@ -28,18 +28,47 @@ other versions have not been tested
 
 Building, Running & Testing
 ---------------------------
+1) Clone kmemcache from github
 
-	[root@jgli]# tar xjf kmemcache.tar.bz2
-	[root@jgli]# make
-	[root@jgli]# insmod kmod/kmemcache.ko
-	[root@jgli]# user/umemcached -h
-	[root@jgli]# user/umemcached -p 11213
-	[root@jgli]# apt-get install libmemcached
-	[root@jgli]# memslap --servers=localhost:11213
+	[jgli@linux]$ git clone https://github.com/jgli/kmemcache.git
+
+2) Compiling kmemcache
+
+	[jgli@linux]$ cd kmemcache
+	[jgli@linux]$ make
+
+3) Running kmemcache
+
+3.1 Change user to root
+
+	[jgli@linux]$ su root
+	Password:
+
+3.2 Insert kernel module and start server
+
+	[root@linux]# insmod kmod/kmemcache.ko
+	[root@linux]# user/umemcached -h
+	[root@linux]# user/umemcached -p 11213
+
+4) Testing kmemcache
+
+4.1 Case 1, using libmemcached
+
+	[root@linux]# apt-get install libmemcached
+	[root@linux]# memcapable -h localhost -p 11213
+	[root@linux]# memslap --servers=localhost:11213
+
+4.2 Case 2, using testapp
+
+	[root@linux]# rmmod kmemcache
+	[root@linux]# insmod kmod/kmctest.ko
+	[root@linux]# ./test/testapp
+
+4.3 More cases refer to memcached
 
 Contributing
 ------------
-Want to contribute? You are so welcome! Any reported bugs, feedback, and pulling requests are encouraged!
+Want to contribute? You are so welcome! Any reporting bugs, feedback, and pulling requests are encouraged!
 
 Website
 -------
