@@ -72,14 +72,17 @@ typedef struct {
 	__u8  shutdown_command;
 	__u8  preallocate;
 
+	/*
+	 * flags --- describe the data's value
+	 *
+	 * UNIX_SOCK: data ---> unix domain's absolute path
+	 * PORT_FILE: data ---> n * sock_entry_t + port_file_path
+	 */
 #define UNIX_SOCK (0x1 << 1) 
 #define PORT_FILE (0x1 << 2)
 	__s8  flags;
 	__u16 len;
-	__s8  data[0];	/* flags
-			 *       & UNIX_SOCK: data ---> unix sock path
-			 *	 & PORT_FILE: data ---> n * sock_entry_t + port_file_path
-			 */
+	__s8  data[0];
 } settings_init_t __attribute__((aligned(sizeof(int))));
 
 #ifdef __KERNEL__

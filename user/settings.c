@@ -179,7 +179,7 @@ static int construct_server_socket(settings_init_t *data)
 
 	port_file = getenv("MEMCACHED_PORT_FILENAME");
 	if (port_file) {
-		data->flags &= PORT_FILE;
+		data->flags |= PORT_FILE;
 		memcpy(entry, port_file, strlen(port_file) + 1);
 		data->len += strlen(port_file) + 1;
 	}
@@ -226,7 +226,7 @@ static int construct_settings(struct cn_msg *msg)
 	data->preallocate	  = settings.preallocate;
 
 	if (settings.socketpath != NULL) {
-		data->flags = UNIX_SOCK;
+		data->flags |= UNIX_SOCK;
 		data->len = strlen(settings.socketpath) + 1;
 		memcpy(data->data, settings.socketpath, data->len);
 	} else {
