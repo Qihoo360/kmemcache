@@ -54,7 +54,7 @@ Building, Running & Testing
 
 	[root@linux]# rmmod kmemcache
 
-5) Testing kmemcache
+5) Testing kmemcache	
    Start kmemcache server first as described above.
 
 5.1 Case 1, using libmemcached
