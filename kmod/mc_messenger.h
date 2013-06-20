@@ -185,6 +185,7 @@ static inline int realloc_simpbuf(struct simpbuf *sbuf,
 		res = -ENOMEM;
 	} else {
 		BUFFER_PTR(buf, sbuf->buf);
+		sbuf->len = len;
 	}
 	if (move) {
 		sbuf->cur = sbuf->buf;

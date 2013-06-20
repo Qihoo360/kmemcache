@@ -598,9 +598,10 @@ static enum test_return shutdown_memcached_server(void) {
     close(sock);
 
     /* We set server_pid to -1 so that we don't later call kill() */
-    if (kill(server_pid, 0) == 0) {
+    //if (kill(server_pid, 0) == 0) {
+        remove_kmod();
         server_pid = -1;
-    }
+    //}
 
     return TEST_PASS;
 }
@@ -1802,7 +1803,6 @@ static enum test_return test_issue_101(void) {
         sock = connect_server("127.0.0.1", port, false);
         ret = test_binary_noop();
         close(sock);
-	remove_kmod();
         exit(0);
     }
 
@@ -1812,7 +1812,7 @@ static enum test_return test_issue_101(void) {
         close(fds[ii]);
     }
 
-    assert(kill(server_pid, SIGTERM) == 0);
+    remove_kmod();
 
     return ret;
 }
