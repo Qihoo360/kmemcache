@@ -50,9 +50,14 @@ Building, Running & Testing
 	[root@linux]# user/umemcached -h
 	[root@linux]# user/umemcached -p 11213
 
-4) Testing kmemcache
+4) Stopping kmemcache
 
-4.1 Case 1, using libmemcached
+	[root@linux]# rmmod kmemcache
+
+5) Testing kmemcache
+   Start kmemcache server first as described above.
+
+5.1 Case 1, using libmemcached
 
 	[root@linux]# apt-get install libmemcached
 	[root@linux]# memcapable -h localhost -p 11213
@@ -60,7 +65,6 @@ Building, Running & Testing
 
 4.2 Case 2, using testapp
 
-	[root@linux]# rmmod kmemcache
 	[root@linux]# insmod kmod/kmctest.ko
 	[root@linux]# ./test/testapp
 
