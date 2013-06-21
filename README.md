@@ -57,7 +57,6 @@ Building, Running & Testing
 5) Testing kmemcache	
 
 5.1 Case 1, using libmemcached
-Start kmemcache server first as described above.
 
 	[root@linux]# apt-get install libmemcached
 	[root@linux]# memcapable -h localhost -p 11213
