@@ -71,7 +71,7 @@ Building, Running & Testing
 
 	[root@linux]# ./t/00-startup.t
 
-4.4 More cases refer to memcached
+5.4 More cases refer to memcached
 
 Contributing
 ------------
