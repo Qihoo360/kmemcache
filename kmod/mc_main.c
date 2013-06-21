@@ -290,6 +290,7 @@ static int __init kmemcache_init(void)
 		goto cn_exit;
 	}
 
+	PRINTK("insert kmod success\n");
 	return 0;
 
 cn_exit:
@@ -317,6 +318,7 @@ static void __exit kmemcache_exit(void)
 		unregister_kmemcache_bh();
 	}
 	connector_exit();
+	PRINTK("remove kmod success\n");
 }
 
 module_init(kmemcache_init);

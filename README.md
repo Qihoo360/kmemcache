@@ -55,20 +55,24 @@ Building, Running & Testing
 	[root@linux]# rmmod kmemcache
 
 5) Testing kmemcache	
-   Start kmemcache server first as described above.
 
 5.1 Case 1, using libmemcached
+Start kmemcache server first as described above.
 
 	[root@linux]# apt-get install libmemcached
 	[root@linux]# memcapable -h localhost -p 11213
 	[root@linux]# memslap --servers=localhost:11213
 
-4.2 Case 2, using testapp
+5.2 Case 2, using testapp
 
 	[root@linux]# insmod kmod/kmctest.ko
 	[root@linux]# ./test/testapp
 
-4.3 More cases refer to memcached
+5.3 Case 3, using perl scripts
+
+	[root@linux]# ./t/00-startup.t
+
+4.4 More cases refer to memcached
 
 Contributing
 ------------

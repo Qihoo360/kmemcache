@@ -24,6 +24,7 @@
 #include "config.h"
 #include "kmodtest.h"
 #include "../kmod/mc_proto_bin.h"
+#include "util.h"
 
 #define TMP_TEMPLATE "/tmp/test_file.XXXXXXX"
 #define KMC_DEVICE "/dev/kmemcache"
@@ -233,76 +234,6 @@ static enum test_return test_safe_strtol(void) {
     return TEST_PASS;
 }
 
-static void close_terminal(void)
-{
-	int fd;
-
-	if ((fd = open("/dev/null", O_RDWR, 0)) != -1) {
-		if(dup2(fd, STDIN_FILENO) < 0) {
-			perror("dup2 stdin");
-			return;
-		}
-		if(dup2(fd, STDOUT_FILENO) < 0) {
-			perror("dup2 stdout");
-			return;
-		}
-		if(dup2(fd, STDERR_FILENO) < 0) {
-			perror("dup2 stderr");
-			return;
-		}
-		if (fd > STDERR_FILENO) {
-			if(close(fd) < 0) {
-				perror("close");
-				return;
-			}
-		}
-	}
-}
-
-static void insert_kmod(void)
-{
-	pid_t pid = fork();
-	assert(pid != -1);
-
-	if (pid > 0) {
-		int stat;
-		pid_t c;
-		while ((c = waitpid(pid, &stat, 0)) == (pid_t)-1 && errno == EINTR);
-		assert(c == pid);
-		assert(stat == 0);
-	} else {
-		char *argv[5];
-
-		argv[0] = "/sbin/insmod";
-		argv[1] = "./kmod/kmemcache.ko";
-		argv[2] = NULL;
-		
-		assert(execv(argv[0], argv) == 0);
-	}
-}
-
-static void remove_kmod(void)
-{
-	pid_t pid = fork();
-	assert(pid != -1);
-
-	if (pid > 0) {
-		int stat;
-		pid_t c;
-		while ((c = waitpid(pid, &stat, 0)) == (pid_t)-1 && errno == EINTR);
-		assert(c == pid);
-		assert(stat == 0);
-	} else {
-		char *argv[5];
-
-		argv[0] = "/sbin/rmmod";
-		argv[1] = "kmemcache";
-		argv[2] = NULL;
-
-		assert(execv(argv[0], argv) == 0);
-	}
-}
-
 /**
  * Function to start the server and let it listen on a random port
  *
@@ -343,7 +274,7 @@ static pid_t start_server(in_port_t *port_out, int timeout) {
          argv[arg++] = "-vvv";
 #endif
         argv[arg++] = NULL;
-	insert_kmod();
+	insert_kmod("./kmod/kmemcache");
 	close_terminal();
         assert(execv(argv[0], argv) != -1);
     } else {
@@ -384,7 +315,7 @@ static pid_t start_server(in_port_t *port_out, int timeout) {
 static enum test_return test_issue_44(void) {
     in_port_t port;
     start_server(&port, 15);
-    remove_kmod();
+    remove_kmod("./kmod/kmemcache");
     return TEST_PASS;
 }
 
@@ -606,7 +537,7 @@ static enum test_return start_memcached_server(void) {
 static enum test_return stop_memcached_server(void) {
     close(sock);
     if (server_pid != -1) {
-	    remove_kmod();
+	    remove_kmod("./kmod/kmemcache");
     }
 
     return TEST_PASS;
@@ -1838,7 +1769,7 @@ static enum test_return test_issue_101(void) {
         close(fds[ii]);
     }
 
-    remove_kmod();
+    remove_kmod("./kmod/kmemcache");
 
     return ret;
 }

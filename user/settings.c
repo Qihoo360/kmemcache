@@ -133,7 +133,7 @@ static int parse_server_sockets(int port, net_transport_t transport)
 
 			ret |= parse_server_socket(p, the_port, transport);
 			if (ret) {
-				fprintf(stderr, "parse socket error");
+				fprintf(stderr, "parse socket error\n");
 				return 1;
 			}
 		}
@@ -247,7 +247,7 @@ int netlink_send_settings(int sock, struct cn_id *id)
 	if (init == 0) {
 		memset(buf, 0, sizeof(buf));
 		if (construct_settings(msg)) {
-			printf("construct settings msg error");
+			printf("construct settings msg error\n");
 			return -1;
 		}
 		init = 1;

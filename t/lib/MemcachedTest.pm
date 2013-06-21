@@ -12,7 +12,7 @@ use Cwd;
 my $builddir = getcwd;
 
 
-@EXPORT = qw(new_memcached sleep mem_get_is mem_gets mem_gets_is mem_stats
+@EXPORT = qw(start_kmemcache stop_kmemcache sleep mem_get_is mem_gets mem_gets_is mem_stats
              supports_sasl free_port);
 
 sub sleep {
@@ -137,18 +137,18 @@ sub free_port {
 }
 
 sub supports_udp {
-    my $output = `$builddir/memcached-debug -h`;
-    return 0 if $output =~ /^memcached 1\.1\./;
+#    my $output = `$builddir/user/umemcached -h`;
+#    return 0 if $output =~ /^memcached 1\.1\./;
     return 1;
 }
 
 sub supports_sasl {
-    my $output = `$builddir/memcached-debug -h`;
-    return 1 if $output =~ /sasl/i;
+#    my $output = `$builddir/user/umemcached -h`;
+#    return 1 if $output =~ /sasl/i;
     return 0;
 }
 
-sub new_memcached {
+sub start_kmemcache {
     my ($args, $passed_port) = @_;
     my $port = $passed_port || free_port();
     my $host = '127.0.0.1';
@@ -161,7 +161,7 @@ sub new_memcached {
                                           host => $host,
                                           port => $port);
         }
-        croak("Failed to connect to specified memcached server.") unless $conn;
+        croak("Failed to connect to specified kmemcache server.") unless $conn;
     }
 
     my $udpport = free_port("udp");
@@ -169,24 +169,23 @@ sub new_memcached {
     if (supports_udp()) {
         $args .= " -U $udpport";
     }
-    if ($< == 0) {
-        $args .= " -u root";
-    }
 
     my $childpid = fork();
 
-    my $exe = "$builddir/memcached-debug";
-    croak("memcached binary doesn't exist.  Haven't run 'make' ?\n") unless -e $exe;
-    croak("memcached binary not executable\n") unless -x _;
+    my $exe = "$builddir/user/umemcached";
+    my $mod = "$builddir/kmod/kmemcache.ko";
+    croak("kmemcache binary doesn't exist.  Haven't run 'make' ?\n") unless -e $exe;
+    croak("kmemcache binary not executable\n") unless -x _;
 
     unless ($childpid) {
-        exec "$builddir/timedrun 600 $exe $args";
+        exec "$builddir/test/kmcstart 1 $mod $exe $args";
         exit; # never gets here.
     }
 
+    waitpid($childpid, 0);
+
     # unix domain sockets
     if ($args =~ /-s (\S+)/) {
-        sleep 1;
         my $filename = $1;
         my $conn = IO::Socket::UNIX->new(Peer => $filename) ||
             croak("Failed to connect to unix domain socket: $! '$filename'");
@@ -212,7 +211,20 @@ sub new_memcached {
         }
         select undef, undef, undef, 0.10;
     }
-    croak("Failed to startup/connect to memcached server.");
+    croak("Failed to startup/connect to kmemcache server.");
+}
+
+sub stop_kmemcache {
+    my $childpid = fork();
+
+    unless ($childpid) {
+        exec "$builddir/test/kmcstop 1";
+        exit; # never gets here.
+    }
+
+    waitpid($childpid, 0);
+
+    return 0;
 }
 
 ############################################################################
