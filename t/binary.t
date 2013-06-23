@@ -7,8 +7,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-#my $server = new_memcached();
-my $server = Cache::Memcached->new({servers => [10.1.41.214:11213]});
+my $server = start_kmemcache();
 ok($server, "started the server");
 
 # Based almost 100% off testClient.py which is:
@@ -885,6 +884,8 @@ sub einval {
     my $self = shift;
     return $self->[0] == ERR_EINVAL;
 }
+
+stop_kmemcache();
 
 # vim: filetype=perl
 
