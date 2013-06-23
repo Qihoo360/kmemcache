@@ -75,22 +75,74 @@ void settings_exit(void)
 		kfree(sock_info);
 }
 
+static void* user_env_callback(struct cn_msg *msg,
+			       struct netlink_skb_parms *pm)
+{
+	void *res = NULL;
+	ack_env_t *penv = (ack_env_t *)msg->data;
+
+	switch (penv->env) {
+	case T_MEMD_INITIAL_MALLOC:
+		res = (unsigned long *)penv->data;
+		break;
+	case T_MEMD_SLABS_LIMIT:
+		res = (int *)penv->data;
+		break;
+	default:
+		WARN(1, "not define environment: %d\n", penv->env);
+		break;
+	}
+
+	return res;
+}
+
+void* user_env(ask_env_t env)
+{
+	int ret;
+	void *res = NULL;
+	struct cn_msg *msg;
+	ask_env_t *penv;
+	char buf[KMC_V_ASK_ENV];
+
+	msg  = (struct cn_msg *)buf;
+	penv = (env_t *)msg->data;
+
+	msg->id.idx = CN_IDX_ENV;
+	msg->id.val = mc_get_unique_val();
+	msg->len    = sizeof(ask_env_t);
+	*penv	    = env;
+
+	ret = mc_add_callback(&msg->id, user_env_callback, 1);
+	if (unlikely(ret)) {
+		PRINTK("add settings init callback error\n");
+		goto out;
+	}
+	res = mc_send_msg_timeout(msg, msecs_to_jiffies(timeout * 1000));
+	if (IS_ERR(res)) {
+		PRINTK("send settings init error\n");
+		res = NULL;
+	}
+
+	mc_del_callback(&msg->id, 1);
+out:
+	mc_put_unique_val(msg->id.val);
+	return res;
+}
+
 void report_cache_bh_status(bool success)
 {
-#define CACHE_BH_STATUS	(sizeof(struct cn_msg) + sizeof(cache_status_t))
-
 	int ret = 0;
 	struct cn_msg *msg;
-	cache_status_t *sta;
-	char buf[CACHE_BH_STATUS];
+	__s32 *status;
+	char buf[KMC_V_BH_STATUS];
 
-	msg = (struct cn_msg *)buf;
-	sta = (cache_status_t *)msg->data;
+	msg	= (struct cn_msg *)buf;
+	status	= (__s32 *)msg->data;
 
 	msg->id.idx = CN_IDX_CACHE_BH_STATUS;
 	msg->id.val = mc_get_unique_val();
-	msg->len    = sizeof(cache_status_t);
-	sta->status = success;
+	msg->len    = sizeof(__s32);
+	*status	    = success;
 
 	ret = mc_add_callback(&msg->id, default_callback, 0);
 	if (unlikely(ret)) {
@@ -104,7 +156,6 @@ void report_cache_bh_status(bool success)
 	mc_del_callback(&msg->id, 0);
 out:
 	mc_put_unique_val(msg->id.val);
-#undef CACHE_BH_STATUS
 }
 
 static void try_shutdown(void)

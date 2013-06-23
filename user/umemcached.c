@@ -358,10 +358,10 @@ int netlink_send(int sock, struct cn_msg *msg)
 
 static void process_cache_bh_status(struct cn_msg *msg)
 {
-	cache_status_t *sta;
+	__s32 *status;
 
-	sta = (cache_status_t *)msg->data;
-	if (sta->status) {
+	status = (__s32 *)msg->data;
+	if (*status) {
 		printf("start kmemcache server success\n");
 	} else {
 		printf("start kmemcache server failed\n");
@@ -446,6 +446,9 @@ static void main_loop(void)
 					switch (msg->id.idx) {
 					case CN_IDX_INIT_SET:
 						netlink_send_settings(sock, &msg->id);
+						break;
+					case CN_IDX_ENV:
+						netlink_send_env(sock, msg);
 						break;
 					case CN_IDX_CACHE_BH_STATUS:
 						process_cache_bh_status(msg);

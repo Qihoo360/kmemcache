@@ -45,6 +45,7 @@
 
 #define CN_IDX_CACHE_BH		0x01
 #define CN_IDX_INIT_SET		0x02
+#define CN_IDX_ENV		0x03
 #define CN_IDX_SASL_DIS		0x10
 #define CN_IDX_SASL_SER_NEW	0x11
 #define CN_IDX_SASL_LIST_MECH	0x12

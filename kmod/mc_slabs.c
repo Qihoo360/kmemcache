@@ -460,16 +460,22 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 	int ret = 0;
 	int i = POWER_SMALLEST - 1;
 	unsigned int size = sizeof(item) + settings.chunk_size;
+	void *env;
 
 	/* total bytes that slabs could use */
 	if (unlikely(!slabsize))
 		return -EINVAL;
-	slabsize = (slabsize * totalram_pages * PAGE_SIZE) / 100;
+	env = user_env(T_MEMD_SLABS_LIMIT);
+	if (*((int *)env)) {
+		slabsize = (slabsize * totalram_pages * PAGE_SIZE) / 100;
+	} else {
+		slabsize = limit;
+	}
 	if (limit > slabsize) {
 		PRINTK("slabs memory limit from %zu to %lu bytes\n", limit, slabsize);
 		limit = slabsize;
 	}
-	mem_limit = min((unsigned long)limit, slabsize);
+	mem_limit = limit;
 
 	if (prealloc) {
 		mem_base = vmalloc(mem_limit);
@@ -503,6 +509,12 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 
 	PVERBOSE(1, "slab class %3d: chunk size %9u perslab %7u\n",
 		 i, slabclass[i].size, slabclass[i].perslab);
+
+	/* for the test suite: facking of how much we've already malloced */
+	env = user_env(T_MEMD_INITIAL_MALLOC);
+	if (env) {
+		mem_malloced = *((unsigned long *)env);
+	}
 
 	if (prealloc) {
 		ret = mc_slabs_preallocate(power_largest);

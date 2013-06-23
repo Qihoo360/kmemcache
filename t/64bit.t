@@ -8,8 +8,9 @@ use MemcachedTest;
 
 $ENV{T_MEMD_INITIAL_MALLOC} = "4294967328"; # 2**32 + 32 , just over 4GB
 $ENV{T_MEMD_SLABS_ALLOC}    = 0;  # don't preallocate slabs
+$ENV{T_MEMD_SLABS_LIMIT}    = 0; # enable kmod/mc_main.c:slabsize
 
-my $server = new_memcached("-m 4098 -M");
+my $server = start_kmemcache("-m 4098 -M");
 my $sock = $server->sock;
 
 my ($stats, $slabs) = @_;
@@ -18,6 +19,7 @@ $stats = mem_stats($sock);
 
 if ($stats->{'pointer_size'} eq "32") {
     plan skip_all => 'Skipping 64-bit tests on 32-bit build';
+    stop_kmemcache();
     exit 0;
 } else {
     plan tests => 6;
@@ -42,3 +44,5 @@ ok($hit_limit, "hit size limit");
 
 $slabs = mem_stats($sock, 'slabs');
 is($slabs->{'active_slabs'}, 1, "1 active slab");
+
+stop_kmemcache();

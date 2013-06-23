@@ -20,9 +20,17 @@ typedef enum {
 	negotiating_prot
 } protocol_t;
 
+typedef enum {
+	T_MEMD_INITIAL_MALLOC,
+	T_MEMD_SLABS_LIMIT,
+} env_t;
+
+typedef env_t	ask_env_t;
+
 typedef struct {
-	int status;
-} cache_status_t;
+	env_t	env;
+	char	data[0];
+} ack_env_t;
 
 #define MAX_VERBOSITY_LEVEL 2
 #define DEFAULT_HASH_BULK_MOVE	1
@@ -84,6 +92,11 @@ typedef struct {
 	__u16 len;
 	__s8  data[0];
 } settings_init_t __attribute__((aligned(sizeof(int))));
+
+#define KMC_V_MSG	(sizeof(struct cn_msg))
+#define KMC_V_ASK_ENV	(KMC_V_MSG + sizeof(ask_env_t))
+#define KMC_V_ACK_ENV	(KMC_V_MSG + sizeof(ack_env_t))
+#define KMC_V_BH_STATUS	(KMC_V_MSG + sizeof(__s32))
 
 #ifdef __KERNEL__
 
