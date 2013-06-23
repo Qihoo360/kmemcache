@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached('-M -m 1');
+my $server = start_kmemcache('-M -m 1');
 my $sock = $server->sock;
 
 my $value = "B" x 8192;
@@ -32,3 +32,5 @@ is(scalar <$sock>, "SERVER_ERROR out of memory storing object\r\n",
 for($key = 0; $key < $max_stored; $key++) {
     mem_get_is $sock, "dash$key", $value, "Failed at dash$key";
 }
+
+stop_kmemcache();
