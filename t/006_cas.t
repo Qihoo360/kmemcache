@@ -7,7 +7,7 @@ use lib "$Bin/lib";
 use MemcachedTest;
 
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $sock2 = $server->new_sock;
 
@@ -16,21 +16,28 @@ my @result2;
 
 ok($sock != $sock2, "have two different connections open");
 
+stop_kmemcache();
+
 sub check_args {
     my ($line, $name) = @_;
 
-    my $svr = new_memcached();
+    my $svr = start_kmemcache();
     my $s = $svr->sock;
 
     print $s $line;
     is(scalar <$s>, "CLIENT_ERROR bad command line format\r\n", $name);
     undef $svr;
+    stop_kmemcache();
 }
 
 check_args "cas bad blah 0 0 0\r\n\r\n", "bad flags";
 check_args "cas bad 0 blah 0 0\r\n\r\n", "bad exp";
 check_args "cas bad 0 0 blah 0\r\n\r\n", "bad cas";
 check_args "cas bad 0 0 0 blah\r\n\r\n", "bad size";
+
+my $server = start_kmemcache();
+my $sock = $server->sock;
+my $sock2 = $server->new_sock;
 
 # gets foo (should not exist)
 print $sock "gets foo\r\n";
@@ -156,3 +163,5 @@ is(scalar <$sock>, "1\r\n", "gets bug15 data is 0");
 is(scalar <$sock>, "END\r\n","gets bug15 END");
 
 ok($bug15_cas != $next_bug15_cas, "CAS changed");
+
+stop_kmemcache();
