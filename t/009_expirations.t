@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $expire;
 
@@ -62,3 +62,5 @@ sleep(2.3);
 print $sock "add add 0 2 7\r\naddval3\r\n";
 is(scalar <$sock>, "STORED\r\n", "stored add again");
 mem_get_is($sock, "add", "addval3");
+
+stop_kmemcache();

@@ -61,7 +61,7 @@ static void mc_timer_update(unsigned long arg)
 
 	if (unlikely(t->flags & TIMER_DEL))
 		return;
-	current_time++;
+	current_time = get_seconds() - process_started;
 	t->timer.expires = jiffies + HZ;
 	add_timer(&t->timer);
 }
