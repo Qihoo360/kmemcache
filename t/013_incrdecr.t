@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 # Bug 21
@@ -69,3 +69,5 @@ print $sock "incr text 1\r\n";
 is(scalar <$sock>,
    "CLIENT_ERROR cannot increment or decrement non-numeric value\r\n",
    "hi - 1 = 0");
+
+stop_kmemcache();
