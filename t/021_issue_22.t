@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached("-m 3");
+my $server = start_kmemcache("-m 3");
 my $sock = $server->sock;
 my $value = "B"x66560;
 my $key = 0;
@@ -37,3 +37,5 @@ for ($key = 40; $key < 80; $key++) {
 my $last_stats  = mem_stats($sock, "items");
 my $last_evicted = $last_stats->{"items:31:evicted"};
 is ($last_evicted, "40", "check evicted");
+
+stop_kmemcache();
