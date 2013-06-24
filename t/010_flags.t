@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 # set foo (and should get it)
@@ -16,3 +16,5 @@ for my $flags (0, 123, 2**16-1) {
     mem_get_is({ sock => $sock,
                  flags => $flags }, "foo", "fooval", "got flags $flags back");
 }
+
+stop_kmemcache();
