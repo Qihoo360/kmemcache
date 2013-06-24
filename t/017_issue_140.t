@@ -10,7 +10,7 @@ plan skip_all => 'Fix for Issue 140 was only an illusion';
 
 plan tests => 7;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 print $sock "set a 0 0 1\r\na\r\n";
@@ -39,3 +39,5 @@ sleep(3);
 my $stats  = mem_stats($sock, "items");
 my $age = $stats->{"items:1:age"};
 is ($age, undef, "all should be gone");
+
+stop_kmemcache();
