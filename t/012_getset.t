@@ -7,7 +7,7 @@ use lib "$Bin/lib";
 use MemcachedTest;
 
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 
@@ -97,3 +97,4 @@ while ($len < 1024*1028) {
     $len += 2048;
 }
 
+stop_kmemcache();

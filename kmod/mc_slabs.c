@@ -83,8 +83,6 @@ static void* mc_memory_allocate(size_t size, void *vptr)
 	if (likely(!mem_base)) {
 		struct buffer *buf = vptr;
 
-		if (mem_malloced + size > slabsize)
-			return NULL;
 		if (alloc_buffer(buf, size, __GFP_ZERO))
 			return NULL;
 		BUFFER_PTR(buf, ret);
