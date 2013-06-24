@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 print $sock "set key 0 0 1\r\n1\r\n";
 is (scalar <$sock>, "STORED\r\n", "stored key");
@@ -21,3 +21,5 @@ is (scalar <$sock>, "STORED\r\n", "stored key");
 my $s2  = mem_stats($sock);
 my $r2 = $s2->{"reclaimed"};
 is ($r2, "1", "Objects should be reclaimed");
+
+stop_kmemcache();
