@@ -69,7 +69,7 @@ static void mc_timer_update(unsigned long arg)
 static int timer_init(void)
 {
 	process_started = get_seconds() - 2;
-	current_time = 1;
+	current_time = 2;
 
 	init_timer(&time_updater.timer);
 
