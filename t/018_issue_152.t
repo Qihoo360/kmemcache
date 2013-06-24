@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $key = "a"x251;
 
@@ -15,3 +15,5 @@ is (scalar <$sock>, "STORED\r\n", "Stored key");
 
 print $sock "get a $key\r\n";
 is (scalar <$sock>, "CLIENT_ERROR bad command line format\r\n", "illegal key");
+
+stop_kmemcache();
