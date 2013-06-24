@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 # first get should miss
@@ -22,3 +22,5 @@ my $stats = mem_stats($sock);
 is($stats->{cmd_get}, 2, "Should have 2 get requests");
 is($stats->{get_hits}, 1, "Should have 1 hit");
 is($stats->{get_misses}, 1, "Should have 1 miss");
+
+stop_kmemcache();
