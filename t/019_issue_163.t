@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $value1 = "A"x66560;
 my $value2 = "B"x66570;
@@ -35,3 +35,5 @@ is (scalar <$sock>, "STORED\r\n", "stored key");
 my $stats  = mem_stats($sock, "slabs");
 my $requested2 = $stats->{"31:mem_requested"};
 is ($requested2, $requested, "we've not allocated and freed the same amont");
+
+stop_kmemcache();
