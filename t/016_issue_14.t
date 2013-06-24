@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $value = "B"x66560;
 my $key = 0;
@@ -31,4 +31,6 @@ my $second_stats  = mem_stats($sock, "slabs");
 my $second_malloc = $second_stats->{total_malloced};
 
 
-is ($second_malloc, $first_malloc, "Memory grows..")
+is ($second_malloc, $first_malloc, "Memory grows..");
+
+stop_kmemcache();
