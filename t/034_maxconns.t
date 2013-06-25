@@ -13,7 +13,7 @@ use MemcachedTest;
 
 
 # start up a server with 10 maximum connections
-my $server = new_memcached('-c 100');
+my $server = start_kmemcache('-c 100');
 my $sock = $server->sock;
 my @sockets;
 
@@ -26,3 +26,5 @@ foreach my $conn (1..10) {
   ok(defined($sock), "Made connection $conn");
   push(@sockets, $sock);
 }
+
+stop_kmemcache();
