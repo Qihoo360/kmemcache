@@ -8,7 +8,7 @@ use MemcachedTest;
 
 my $filename = "/tmp/memcachetest$$";
 
-my $server = new_memcached("-s $filename");
+my $server = start_kmemcache("-s $filename");
 my $sock = $server->sock;
 
 ok(-S $filename, "creating unix domain socket $filename");
@@ -20,5 +20,7 @@ is(scalar <$sock>, "STORED\r\n", "stored foo");
 mem_get_is($sock, "foo", "fooval");
 
 unlink($filename);
+
+stop_kmemcache();
 
 ## Just some basic stuff for now...

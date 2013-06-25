@@ -633,7 +633,8 @@ static int server_socket_unix(const char *path, int mask)
 	addr.sun_family = AF_UNIX;
 	strcpy(addr.sun_path, path);
 
-	mask = xchg(&current->fs->umask, ~(mask & S_IRWXUGO));
+	mask = ~(mask & S_IRWXUGO);
+	mask = xchg(&current->fs->umask, mask & S_IRWXUGO);
 	ret = kernel_bind(ss->sock, (struct sockaddr *)&addr, sizeof(addr) - 1);
 	if (ret < 0) {
 		PRINTK("bind unix socket error\n");
