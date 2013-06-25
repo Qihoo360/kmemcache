@@ -52,7 +52,7 @@ char* s2c_msg[MSG_MAX] __read_mostly = {
 	MSG_ENTRY(MSG_TXT_BAD_CHUNK,	"CLIENT_ERROR bad data chunk"),
 	MSG_ENTRY(MSG_TXT_BAD_CMDLIN,	"CLIENT_ERROR bad command line"),
 	MSG_ENTRY(MSG_TXT_BAD_CMDFMT,	"CLIENT_ERROR bad command line format"),
-	MSG_ENTRY(MSG_TXT_BAD_CMDUSG,	"CLIENT_ERROR bad command line format. Usage: delete <key> [noreply]"),
+	MSG_ENTRY(MSG_TXT_BAD_CMDUSG,	"CLIENT_ERROR bad command line format.  Usage: delete <key> [noreply]"),
 	MSG_ENTRY(MSG_TXT_ILL_SLAB,	"CLIENT_ERROR Illegal slab id"),
 	MSG_ENTRY(MSG_TXT_ILL_TIME,	"CLIENT_ERROR invalid exptime argument"),
 	MSG_ENTRY(MSG_TXT_ILL_NUM,	"CLIENT_ERROR invalid numeric delta argument"),
