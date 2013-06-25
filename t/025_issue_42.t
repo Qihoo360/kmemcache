@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $value = "B"x10;
 my $key = 0;
@@ -19,3 +19,5 @@ for ($key = 0; $key < 10; $key++) {
 my $first_stats = mem_stats($sock, "slabs");
 my $req = $first_stats->{"1:mem_requested"};
 ok ($req == "640" || $req == "800", "Check allocated size");
+
+stop_kmemcache();
