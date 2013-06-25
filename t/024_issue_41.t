@@ -8,7 +8,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 my $factor = 2;
@@ -37,3 +37,5 @@ my $stats = mem_stats($sock, "slabs");
 print $sock "version\r\n";
 my $v = scalar <$sock>;
 ok(defined $v && length($v), "memcached didn't respond");
+
+stop_kmemcache();
