@@ -27,7 +27,7 @@ use constant INCRDECR_PKT_FMT => "NNNNN";
 use constant MIN_RECV_BYTES   => length(pack(RES_PKT_FMT));
 
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 # set foo (and should get it)
@@ -258,3 +258,5 @@ __END__
 ($port, $hisiaddr) = sockaddr_in($hispaddr);
 $host = gethostbyaddr($hisiaddr, AF_INET);
 $histime = unpack("N", $rtime) - $SECS_of_70_YEARS ;
+
+stop_kmemcache();
