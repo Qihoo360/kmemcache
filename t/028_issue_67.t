@@ -38,19 +38,22 @@ sub validate_port {
 sub run_server {
     my ($args) = @_;
 
-    my $exe = "$builddir/memcached-debug";
+    my $exe = "$builddir/user/umemcached";
+    my $mod = "$builddir/kmod/kmemcache.ko";
     croak("memcached binary doesn't exist.  Haven't run 'make' ?\n") unless -e $exe;
 
     my $childpid = fork();
 
-    my $root = '';
-    $root = "-u root" if ($< == 0);
-    my $cmd = "$builddir/timedrun 10 $exe $root $args";
+#    my $root = '';
+#    $root = "-u root" if ($< == 0);
+    my $cmd = "$builddir/test/kmcstart 1 $mod $exe $args";
 
     unless($childpid) {
         exec $cmd;
         exit; # NOTREACHED
     }
+
+    waitpid($childpid, 0);
 
     for (1..20) {
         if (-f "/tmp/ports.$$") {
@@ -61,6 +64,10 @@ sub run_server {
     croak "Failed to start server.";
 }
 
+sub stop_server {
+    stop_kmemcache();
+}
+
 sub when {
     my ($name, $params, $expected_tcp, $expected_udp) = @_;
 
@@ -69,6 +76,8 @@ sub when {
 
     validate_port($name, $ports{'TCP INET'}, $expected_tcp);
     validate_port($name, $ports{'UDP INET'}, $expected_udp);
+
+    stop_server();
 }
 
 # Disabling the defaults since it conflicts with a running instance.
