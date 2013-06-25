@@ -235,13 +235,15 @@ sub new {
 }
 
 sub DESTROY {
-    my $self = shift;
-    kill 2, $self->{pid};
+#    my $self = shift;
+#    kill 2, $self->{pid};
+    MemcachedTest::stop_kmemcache();
 }
 
 sub stop {
-    my $self = shift;
-    kill 15, $self->{pid};
+#    my $self = shift;
+#    kill 15, $self->{pid};
+    MemcachedTest::stop_kmemcache();
 }
 
 sub host { $_[0]{host} }
