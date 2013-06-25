@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 print $sock "set issue70 0 0 0\r\n\r\n";
@@ -20,3 +20,5 @@ is (scalar <$sock>, "CLIENT_ERROR bad command line format\r\n");
 
 print $sock "set issue70 0 0 2147483647\r\nscoobyscoobydoo";
 is (scalar <$sock>, "CLIENT_ERROR bad command line format\r\n");
+
+stop_kmemcache();
