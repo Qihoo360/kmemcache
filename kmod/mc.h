@@ -214,13 +214,16 @@ struct stats {
 };
 
 typedef struct prefix_stats prefix_stats_t;
+
 struct prefix_stats {
-	char		*prefix;
-	size_t		prefix_len;
+	char	*prefix;
+	size_t	len;
+
 	u64	num_gets;
 	u64	num_sets;
 	u64	num_deletes;
 	u64	num_hits;
+
 	prefix_stats_t *next;
 };
 

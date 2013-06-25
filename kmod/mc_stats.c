@@ -74,7 +74,7 @@ static prefix_stats_t* mc_stats_prefix_find(const char *key, size_t nkey)
 		}
 	}
 
-	pfs = kmem_cache_alloc(prefix_cachep, GFP_KERNEL);
+	pfs = kmem_cache_zalloc(prefix_cachep, GFP_KERNEL);
 	if (!pfs) {
 		PRINTK("allocate space for stats structure error\n");
 		return NULL;
@@ -82,14 +82,14 @@ static prefix_stats_t* mc_stats_prefix_find(const char *key, size_t nkey)
 	pfs->prefix = kmalloc(len + 1, GFP_KERNEL);
 	if (!pfs->prefix) {
 		PRINTK("allocate space for prefix of prefix_stats structure error\n");
-		kfree(pfs);
+		kmem_cache_free(prefix_cachep, pfs);
 		return NULL;
 	}
 
 	strncpy(pfs->prefix, key, len);
 	pfs->prefix[len] = '\0';
-	pfs->prefix_len = len;
-	pfs->next = prefix_stats[hashval];
+	pfs->len	 = len;
+	pfs->next	 = prefix_stats[hashval];
 	prefix_stats[hashval] = pfs;
 
 	num_prefixes++;

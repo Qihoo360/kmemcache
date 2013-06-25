@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 my $expire;
 
@@ -61,3 +61,5 @@ mem_get_is($sock, "foo:123", "fooval");
 print $sock "stats detail dump\r\n";
 is(scalar <$sock>, "PREFIX foo get 1 hit 1 set 0 del 0\r\n", "details after stats turned off");
 is(scalar <$sock>, "END\r\n", "end of details");
+
+stop_kmemcache();
