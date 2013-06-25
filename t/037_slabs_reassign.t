@@ -8,7 +8,7 @@ use lib "$Bin/lib";
 use MemcachedTest;
 
 # Enable manual slab reassign, cap at 6 slabs
-my $server = new_memcached('-o slab_reassign -m 4');
+my $server = start_kmemcache('-o slab_reassign -m 4');
 my $stats = mem_stats($server->sock, ' settings');
 is($stats->{slab_reassign}, "yes");
 
@@ -71,3 +71,5 @@ print $sock "set sfoo51 0 0 20000\r\n", $smalldata, "\r\n";
 is(scalar <$sock>, "STORED\r\n", "stored key");
 
 # Do need to come up with better automated tests for this.
+
+stop_kmemcache();
