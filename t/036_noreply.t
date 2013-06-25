@@ -7,7 +7,7 @@ use lib "$Bin/lib";
 use MemcachedTest;
 
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 
@@ -45,3 +45,4 @@ mem_get_is($sock, "noreply:foo", "7");
 print $sock "delete noreply:foo noreply\r\n";
 mem_get_is($sock, "noreply:foo");
 
+stop_kmemcache();
