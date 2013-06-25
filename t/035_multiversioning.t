@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock  = $server->sock;
 my $sock2 = $server->new_sock;
 
@@ -44,3 +44,5 @@ like($buf, qr/abcde\]/, "buf now closes");
 
 # and if sock1 reads again, it's the uppercase version:
 mem_get_is($sock, "big", $bigval2, "big value2 got correctly from sock1");
+
+stop_kmemcache();
