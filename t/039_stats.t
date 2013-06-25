@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 
@@ -58,7 +58,12 @@ my $sock = $server->sock;
 my $stats = mem_stats($sock);
 
 # Test number of keys
-is(scalar(keys(%$stats)), 48, "48 stats values");
+# kmemcache doesn't use these value
+# @STAT libevent
+# @STAT rusage_user
+# @STAT rusage_system
+# @STAT reserved_fds
+is(scalar(keys(%$stats)), 44, "44 stats values");
 
 # Test initial state
 foreach my $key (qw(curr_items total_items bytes cmd_get cmd_set get_hits evictions get_misses
@@ -164,7 +169,8 @@ is('z', $v, 'got the expected value');
 
 my $settings = mem_stats($sock, ' settings');
 is(1024, $settings->{'maxconns'});
-is('NULL', $settings->{'domain_socket'});
+# kmemcache doesn't use domain_socket
+#is('NULL', $settings->{'domain_socket'});
 is('on', $settings->{'evictions'});
 is('yes', $settings->{'cas_enabled'});
 is('no', $settings->{'auth_enabled_sasl'});
@@ -194,3 +200,5 @@ is(scalar <$sock>, "OK\r\n", "flushed");
 
 my $stats = mem_stats($sock);
 is($stats->{cmd_flush}, 1, "after one flush cmd_flush is 1");
+
+stop_kmemcache();
