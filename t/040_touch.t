@@ -7,7 +7,7 @@ use lib "$Bin/lib";
 use MemcachedTest;
 
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 # set foo (and should get it)
@@ -21,3 +21,5 @@ is(scalar <$sock>, "TOUCHED\r\n", "touched foo");
 
 sleep 2;
 mem_get_is($sock, "foo", "fooval");
+
+stop_kmemcache();
