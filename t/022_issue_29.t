@@ -6,7 +6,7 @@ use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
 
-my $server = new_memcached();
+my $server = start_kmemcache();
 my $sock = $server->sock;
 
 print $sock "set issue29 0 0 0\r\n\r\n";
@@ -23,4 +23,6 @@ is (scalar <$sock>, "STORED\r\n", "stored issue29_b");
 my $second_stats  = mem_stats($sock, "slabs");
 my $second_used = $second_stats->{"1:used_chunks"};
 
-is(2, $second_used, "Used two")
+is(2, $second_used, "Used two");
+
+stop_kmemcache();
