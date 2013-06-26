@@ -208,8 +208,7 @@ static void bin_touch(conn *c)
 		rsp->message.header.response.cas = htonll(ITEM_get_cas(it));
 
 		// add the flags
-		rsp->message.body.flags = htonl(simple_strtoul(ITEM_suffix(it),
-							       NULL, 10));
+		rsp->message.body.flags = htonl(__simple_strtoul(ITEM_suffix(it), NULL, 10));
 		mc_add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
 
 		if (c->cmd == PROTOCOL_BINARY_CMD_GATK) {
@@ -307,8 +306,7 @@ static void bin_get(conn *c)
 		rsp->message.header.response.cas = htonll(ITEM_get_cas(it));
 
 		// add the flags
-		rsp->message.body.flags = htonl(simple_strtoul(ITEM_suffix(it),
-							       NULL, 10));
+		rsp->message.body.flags = htonl(__simple_strtoul(ITEM_suffix(it), NULL, 10));
 		mc_add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
 
 		if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
@@ -848,7 +846,7 @@ static void bin_complete_incr(conn *c)
 			    c->cmd == PROTOCOL_BINARY_CMD_INCREMENT,
 			    req->message.body.delta, tmpbuf, &cas)) {
 	case OK:
-		rsp->message.body.value = htonll(simple_strtoull(tmpbuf, NULL, 10));
+		rsp->message.body.value = htonll(__simple_strtoull(tmpbuf, NULL, 10));
 		if (cas) {
 			c->cas = cas;
 		}

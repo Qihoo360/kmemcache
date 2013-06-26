@@ -177,7 +177,7 @@ delta_result_t mc_do_add_delta(conn *c, const char *key,
 	if (res + 2 > it->nbytes || atomic_read(&it->refcount) != 1) { /* need to realloc */
 		item *new_it;
 		new_it = mc_do_item_alloc(ITEM_key(it), it->nkey,
-					  simple_strtol(ITEM_suffix(it) + 1, NULL, 10),
+					  __simple_strtol(ITEM_suffix(it) + 1, NULL, 10),
 					  it->exptime, res + 2, hv);
 		if (new_it == 0) {
 			mc_do_item_remove(it);
@@ -295,7 +295,7 @@ store_item_t mc_do_store_item(item *it, int comm, conn* c, u32 hv)
 				/* we have it and old_it here - alloc memory to hold both */
 				/* flags was already lost - so recover them from ITEM_suffix(it) */
 
-				flags = (int)simple_strtol(ITEM_suffix(old_it), (char **) NULL, 10);
+				flags = (int)__simple_strtol(ITEM_suffix(old_it), (char **) NULL, 10);
 
 				new_it = mc_do_item_alloc(key, it->nkey, flags,
 							  old_it->exptime,

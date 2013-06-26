@@ -332,6 +332,30 @@ u32 hash(const void *key, u32 length, u32 initval);
 
 rel_time_t realtime(rel_time_t exptime);
 
+static inline long
+__simple_strtol(const char *cp, char **endp, unsigned int base)
+{
+	while (*cp == ' ')
+		cp++;
+	return simple_strtol(cp, endp, base);
+}
+
+static inline unsigned long
+__simple_strtoul(const char *cp, char **endp, unsigned int base)
+{
+	while (*cp == ' ')
+		cp++;
+	return simple_strtoul(cp, endp, base);
+}
+
+static inline unsigned long long
+__simple_strtoull(const char *cp, char **endp, unsigned int base)
+{
+	while (*cp == ' ')
+		cp++;
+	return simple_strtoull(cp, endp, base);
+}
+
 int safe_strtoull(const char *str, u64 *out);
 int safe_strtoll(const char *str, s64 *out);
 int safe_strtoul(const char *str, u32 *out);

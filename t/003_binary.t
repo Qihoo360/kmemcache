@@ -2,7 +2,9 @@
 
 use strict;
 use warnings;
-use Test::More tests => 3549;
+# quit commands, not detail tested
+#use Test::More tests => 3549;
+use Test::More tests => 3501;
 use FindBin qw($Bin);
 use lib "$Bin/lib";
 use MemcachedTest;
@@ -416,28 +418,6 @@ $mc->silent_mutation(::CMD_ADDQ, 'silentadd', 'silentaddval');
     is('yes', $stats{'cas_enabled'});
 }
 
-# diag "Test quit commands.";
-{
-    my $s2 = new_memcached();
-    my $mc2 = MC::Client->new($s2);
-    $mc2->send_command(CMD_QUITQ, '', '', 0, '', 0);
-
-    # Five seconds ought to be enough to get hung up on.
-    my $oldalarmt = alarm(5);
-
-    # Verify we can't read anything.
-    my $bytesread = -1;
-    eval {
-        local $SIG{'ALRM'} = sub { die "timeout" };
-        my $data = "";
-        $bytesread = sysread($mc2->{socket}, $data, 24),
-    };
-    is($bytesread, 0, "Read after quit.");
-
-    # Restore signal stuff.
-    alarm($oldalarmt);
-}
-
 # diag "Test protocol boundary overruns";
 {
     use List::Util qw[min];
@@ -481,6 +461,28 @@ my %stats = $mc->stats('detail dump');
         $mc->get($key, 'should die', 10, 10);
     };
     ok($@->einval, "Invalid key length");
+}
+
+# diag "Test quit commands.";
+{
+#    my $s2 = start_kmemcache();
+    my $mc2 = MC::Client->new($server);
+    $mc2->send_command(CMD_QUITQ, '', '', 0, '', 0);
+
+    # Five seconds ought to be enough to get hung up on.
+    my $oldalarmt = alarm(5);
+
+    # Verify we can't read anything.
+    my $bytesread = -1;
+    eval {
+        local $SIG{'ALRM'} = sub { die "timeout" };
+        my $data = "";
+        $bytesread = sysread($mc2->{socket}, $data, 24),
+    };
+    is($bytesread, 0, "Read after quit.");
+
+    # Restore signal stuff.
+    alarm($oldalarmt);
 }
 
 # ######################################################################
@@ -884,8 +886,6 @@ sub einval {
     my $self = shift;
     return $self->[0] == ERR_EINVAL;
 }
-
-stop_kmemcache();
 
 # vim: filetype=perl
 

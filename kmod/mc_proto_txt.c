@@ -599,7 +599,7 @@ static void txt_verbosity(conn *c, token_t *tokens, size_t ntokens)
 
 	set_noreply_maybe(c, tokens, ntokens);
 
-	level = simple_strtoul(tokens[1].value, NULL, 10);
+	level = __simple_strtoul(tokens[1].value, NULL, 10);
 	settings.verbose = level > MAX_VERBOSITY_LEVEL ? MAX_VERBOSITY_LEVEL : level;
 	OSTRING(c, MSG_TXT_OK);
 	return;
@@ -611,7 +611,7 @@ static void txt_slabs_automove(conn *c, token_t *tokens, size_t ntokens)
 
 	set_noreply_maybe(c, tokens, ntokens);
 
-	level = simple_strtoul(tokens[2].value, NULL, 10);
+	level = __simple_strtoul(tokens[2].value, NULL, 10);
 	if (level == 0) {
 		settings.slab_automove = 0;
 	} else if (level == 1 || level == 2) {
