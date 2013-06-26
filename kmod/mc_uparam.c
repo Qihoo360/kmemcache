@@ -120,10 +120,17 @@ out:
 	return ret;
 }
 
-void settings_exit(void)
+void __settings_exit(void)
 {
 	if (sock_info)
 		kfree(sock_info);
+}
+
+void settings_exit(void)
+{
+	kfree(settings.factor);
+	kfree(settings.inter);
+	kfree(settings.socketpath);
 }
 
 static void* user_env_callback(struct cn_msg *msg,

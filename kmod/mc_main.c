@@ -237,7 +237,7 @@ del_caches:
 	caches_info_exit();
 out:
 
-	settings_exit();
+	__settings_exit();
 	if (ret) {
 		sock_info = (void *)-1;
 		PRINTK("start server error\n");
@@ -311,6 +311,7 @@ static void __exit kmemcache_exit(void)
 		slabs_exit();
 		stats_exit();
 		caches_info_exit();
+		settings_exit();
 		oom_exit();
 
 		PRINTK("stop server success\n");
