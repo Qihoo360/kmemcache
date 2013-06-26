@@ -169,8 +169,7 @@ is('z', $v, 'got the expected value');
 
 my $settings = mem_stats($sock, ' settings');
 is(1024, $settings->{'maxconns'});
-# kmemcache doesn't use domain_socket
-#is('NULL', $settings->{'domain_socket'});
+is('NULL', $settings->{'domain_socket'});
 is('on', $settings->{'evictions'});
 is('yes', $settings->{'cas_enabled'});
 is('no', $settings->{'auth_enabled_sasl'});
