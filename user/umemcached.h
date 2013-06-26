@@ -21,6 +21,7 @@ struct settings {
     int evict_to_free;
     char *socketpath;   /* path to unix socket if using local socket */
     int access;  /* access mask (a la chmod) for unix domain socket */
+    char *factor;		   /* chunk size growth factor */
     int factor_numerator;          /* chunk size growth factor */
     int factor_denominator;        /* chunk size growth factor */
     int chunk_size;

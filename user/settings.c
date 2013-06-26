@@ -143,7 +143,7 @@ static int parse_server_sockets(int port, net_transport_t transport)
 	}
 }
 
-static int construct_server_socket(settings_init_t *data)
+static int construct_server_socket(settings_init_t *data, int pos)
 {
 	int ret = 0;
 	char *port_file;
@@ -162,7 +162,7 @@ static int construct_server_socket(settings_init_t *data)
 		goto out;
 	}
 
-	entry = (sock_entry_t *)data->data;
+	entry = (sock_entry_t *)(data->data + pos);
 	for (p = ainfo.next; p != &ainfo; p = p->next) {
 		for (addr = p->ai; addr; addr = addr->ai_next) {
 			entry->trans	= p->trans;
@@ -189,9 +189,30 @@ out:
 	return ret;
 }
 
+static int construct_factor(void *addr)
+{
+	str_t *str = (str_t *)addr;
+
+	str->len = strlen(settings.factor);
+	memcpy((void *)str->buf, settings.factor, str->len);
+
+	return (str->len + sizeof(str_t));
+}
+
+static int construct_inter(void *addr)
+{
+	str_t *str = (str_t *)addr;
+
+	str->len = strlen(settings.inter);
+	memcpy((void *)str->buf, settings.inter, str->len);
+
+	return (str->len + sizeof(str_t));
+}
+
 static int construct_settings(struct cn_msg *msg)
 {
 	int ret = 0;
+	int res, pos = 0;
 	settings_init_t *data;	
 
 	data = (settings_init_t *)msg->data;
@@ -224,13 +245,30 @@ static int construct_settings(struct cn_msg *msg)
 	data->detail_enabled	  = settings.detail_enabled;
 	data->shutdown_command	  = settings.shutdown_command;
 	data->preallocate	  = settings.preallocate;
+	data->factor		  = NULL;
+	data->socketpath	  = NULL;
+	data->inter		  = NULL;
+
+	/* SLAB_FACTOR */
+	res = construct_factor(data->data + pos);
+	data->flags |= SLAB_FACTOR;
+	data->len   += res;
+	pos	    += res;
+
+	/* INET_INTER */
+	if (settings.inter != NULL) {
+		res = construct_inter(data->data + pos);
+		data->flags |= INET_INTER;
+		data->len   += res;
+		pos	    += res;
+	}
 
 	if (settings.socketpath != NULL) {
 		data->flags |= UNIX_SOCK;
-		data->len = strlen(settings.socketpath) + 1;
-		memcpy(data->data, settings.socketpath, data->len);
+		data->len += strlen(settings.socketpath) + 1;
+		memcpy(data->data + pos, settings.socketpath, data->len);
 	} else {
-		ret = construct_server_socket(data);
+		ret = construct_server_socket(data, pos);
 	}
 
 	msg->len = data->len + sizeof(*data);

@@ -258,6 +258,7 @@ static void settings_init(void)
 	settings.oldest_live	= 0;
 	settings.evict_to_free	= 1;       /* push old items out of cache when memory runs out */
 	settings.socketpath	= NULL;       /* by default, not using a unix socket */
+	settings.factor		= "1.25";
 	settings.factor_numerator	= 125;
 	settings.factor_denominator	= 100;
 	settings.chunk_size	= 48;         /* space for a modest key and value */
@@ -614,6 +615,7 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "Factor must be greater than 1\n");
 				return 1;
 			}
+			settings.factor = strdup(optarg);
 			double_int(optarg, &settings.factor_numerator, &settings.factor_denominator);
 			break;
 		case 'n':

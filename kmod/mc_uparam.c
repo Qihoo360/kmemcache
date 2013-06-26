@@ -22,24 +22,75 @@ static void* settings_init_callback(struct cn_msg *msg,
 				    struct netlink_skb_parms *pm)
 {
 	size_t size;
+	int pos = 0;
+	str_t *str = NULL;
+	char *factor = NULL, *inter = NULL, *domain = NULL;
 	settings_init_t *data = (settings_init_t *)msg->data;
 
 	if (!data->len || IS_ERR_OR_NULL(data))
-		return ERR_PTR(-EFAULT);
+		goto err;
 
-	size = sizeof(parser_sock_t) + data->len;
+	/* parse slab allocator's factor */
+	if (data->flags & SLAB_FACTOR) {
+		str = (str_t *)(data->data + pos);
+		factor = kzalloc(str->len + 1, GFP_KERNEL);
+		if (!factor) {
+			PRINTK("alloc slab growth factor error\n");
+			goto err;
+		}
+		memcpy(factor, (char *)str->buf, str->len);
+		pos += str->len + sizeof(str_t);
+	}
+
+	/* parse listen interface */
+	if (data->flags & INET_INTER) {
+		str = (str_t *)(data->data + pos);
+		inter = kzalloc(str->len + 1, GFP_KERNEL);
+		if (!inter) {
+			PRINTK("alloc listen interface error\n");
+			goto free_factor;
+		}
+		memcpy(inter, (char *)str->buf, str->len);
+		pos += str->len + sizeof(str_t);
+	}
+
+	/* parse unix domain path */
+	if (data->flags & UNIX_SOCK) {
+		domain = kzalloc(data->len - pos, GFP_KERNEL);
+		if (!domain) {
+			PRINTK("alloc unix domain path error\n");
+			goto free_inter;
+		}
+		memcpy(domain, (char *)data->data + pos, data->len - pos - 1);
+	}
+
+	/* parse delayed, see mc_dispatcher.c */
+	size = sizeof(parser_sock_t) + data->len - pos;
 	sock_info = kmalloc(size, GFP_KERNEL);
 	if (!sock_info) {
 		PRINTK("alloc socket-parser vectory error\n");
-		return ERR_PTR(-ENOMEM);
+		goto free_unix;
 	}
-
 	sock_info->flags = data->flags;
-	sock_info->len = data->len;
-	memcpy(sock_info->data, data->data, data->len);
+	sock_info->len = data->len - pos;
+	memcpy(sock_info->data, data->data + pos, data->len - pos);
+
+	/* init struct settings */
 	memcpy(&settings, data, sizeof(settings));
+	settings.factor	    = factor;
+	settings.inter	    = inter;
+	settings.socketpath = domain;
 
 	return &settings;
+
+free_unix:
+	kfree(domain);
+free_inter:
+	kfree(inter);
+free_factor:
+	kfree(factor);
+err:
+	return ERR_PTR(-ENOMEM);
 }
 
 int settings_init(void)

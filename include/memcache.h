@@ -23,6 +23,10 @@ typedef enum {
 typedef enum {
 	T_MEMD_INITIAL_MALLOC,
 	T_MEMD_SLABS_LIMIT,
+	MEMCACHED_PORT_FILENAME,
+	MEMCACHED_HASH_BULK_MOVE,
+	MEMCACHED_SLAB_BULK_CHECK,
+	MEMCACHED_GROWTH_FACTOR,
 } env_t;
 
 typedef env_t	ask_env_t;
@@ -35,6 +39,11 @@ typedef struct {
 #define MAX_VERBOSITY_LEVEL 2
 #define DEFAULT_HASH_BULK_MOVE	1
 #define DEFAULT_SLAB_BULK_CHECK	1
+
+typedef struct {
+	__u16 len;
+	__u8  buf[0];
+} str_t;
 
 typedef struct {
 	net_transport_t trans;
@@ -71,6 +80,10 @@ typedef struct {
 	__s32 factor_numerator;
 	__s32 factor_denominator;
 
+	char  *factor;
+	char  *socketpath;
+	char  *inter;
+
 	__u8  use_cas;
 	__u8  sasl;
 	__u8  maxconns_fast;
@@ -82,12 +95,20 @@ typedef struct {
 
 	/*
 	 * flags --- describe the data's value
+	 * SLAB_FACTOR	: slab allocator's growth factor
+	 * INET_INTER	: interface to listen on
+	 * UNIX_SOCK	: unix domain's absolute path
+	 * PORT_FILE	: n * sock_entry_t + port_file_path
 	 *
-	 * UNIX_SOCK: data ---> unix domain's absolute path
-	 * PORT_FILE: data ---> n * sock_entry_t + port_file_path
+	 * layout of data[n]:
+	 * str_t	: SLAB_FACTOR
+	 * str_t	: INET_INTER
+	 * string	: UNIX_SOCK or PORT_FILE
 	 */
-#define UNIX_SOCK (0x1 << 1) 
-#define PORT_FILE (0x1 << 2)
+#define SLAB_FACTOR	(0x1 << 0)
+#define INET_INTER	(0x1 << 1)
+#define UNIX_SOCK	(0x1 << 2)
+#define PORT_FILE	(0x1 << 3)
 	__s8  flags;
 	__u16 len;
 	__s8  data[0];
@@ -123,6 +144,10 @@ struct settings {
 	protocol_t binding_protocol;
 	__s32 factor_numerator;
 	__s32 factor_denominator;
+
+	char  *factor;
+	char  *socketpath;
+	char  *inter;
 
 	__u8  use_cas;
 	__u8  sasl;

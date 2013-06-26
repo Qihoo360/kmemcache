@@ -18,6 +18,7 @@ extern parser_sock_t *sock_info;
 extern struct cn_id cache_bh_id;
 
 extern int settings_init(void);
+extern void __settings_exit(void);
 extern void settings_exit(void);
 
 extern void* user_env(ask_env_t env);
