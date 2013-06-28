@@ -10,6 +10,7 @@
 
 #include <netdb.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -372,16 +373,26 @@ static void process_cache_bh_status(struct cn_msg *msg)
 #define MAX_EVENTS	1
 static void main_loop(void)
 {
-	int ret;
+	int ret, flags;
 	int sock, epoll, nfds, i;
 	struct sockaddr_nl local;
 	struct epoll_event ev, events[MAX_EVENTS];
-
 
 	sock = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_MEMCACHE);
 	if (sock == -1) {
 		perror("socket");
 		return;
+	}
+
+	flags = fcntl(sock, F_GETFL, 0);
+	if (flags == -1) {
+		perror("fcntl, F_GETFL");
+		goto close_sock;
+	}
+	ret = fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+	if (ret == -1) {
+		perror("fcntl, F_SETFL");
+		goto close_sock;
 	}
 
 	local.nl_family = AF_NETLINK;
@@ -392,13 +403,6 @@ static void main_loop(void)
 	if (ret == -1) {
 		perror("bind");
 		goto close_sock;
-	}
-
-	if (!fork()) {
-		sleep(5);
-		netlink_send_cache_bh(sock);
-		close(sock);
-		return;
 	}
 
 	epoll = epoll_create(MAX_EVENTS);
@@ -414,6 +418,8 @@ static void main_loop(void)
 		perror("epoll_ctl: add sock error");
 		goto close_epoll;
 	}
+
+	netlink_send_cache_bh(sock);
 
 	for (; ;) {
 		nfds = epoll_wait(epoll, events, MAX_EVENTS, -1);
