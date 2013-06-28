@@ -139,12 +139,20 @@ static void* user_env_callback(struct cn_msg *msg,
 	void *res = NULL;
 	ack_env_t *penv = (ack_env_t *)msg->data;
 
+	union {
+		char		*_str;
+		int		*_int;
+		unsigned long 	*_ul;
+	} data;
+
 	switch (penv->env) {
 	case T_MEMD_INITIAL_MALLOC:
-		res = (unsigned long *)penv->data;
+		data._ul = (unsigned long *)penv->data;
+		res = (void *)*data._ul;
 		break;
 	case T_MEMD_SLABS_LIMIT:
-		res = (int *)penv->data;
+		data._int = (int *)penv->data;
+		res = (void *)(long)*data._int;
 		break;
 	default:
 		WARN(1, "not define environment: %d\n", penv->env);

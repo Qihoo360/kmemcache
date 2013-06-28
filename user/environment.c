@@ -39,8 +39,8 @@ int netlink_send_env(int sock, struct cn_msg *rcv)
 	case T_MEMD_SLABS_LIMIT:
 		data._int = (int *)ack->data;
 		env = getenv("T_MEMD_SLABS_LIMIT");
-		if (env) {
-			*data._int = atoi(env);
+		if (env && atoi(env)) {
+			*data._int = 1;
 		} else {
 			*data._int = 0;
 		}

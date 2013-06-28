@@ -464,7 +464,7 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 	if (unlikely(!slabsize))
 		return -EINVAL;
 	env = user_env(T_MEMD_SLABS_LIMIT);
-	if (*((int *)env)) {
+	if (env) {
 		slabsize = (slabsize * totalram_pages * PAGE_SIZE) / 100;
 	} else {
 		slabsize = limit;
@@ -511,7 +511,7 @@ int slabs_init(size_t limit, int factor_nume, int factor_deno, bool prealloc)
 	/* for the test suite: facking of how much we've already malloced */
 	env = user_env(T_MEMD_INITIAL_MALLOC);
 	if (env) {
-		mem_malloced = *((unsigned long *)env);
+		mem_malloced = (unsigned long )env;
 	}
 
 	if (prealloc) {
