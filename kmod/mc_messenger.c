@@ -100,7 +100,7 @@ conn* mc_conn_new(struct conn_req *rq)
 	else
 		c->proto_ops = &def_proto_ops;
 
-	if (settings.flags & UNIX_SOCK) {
+	if (settings.socketpath) {
 		c->request_addr_size = 0;
 	} else {
 		c->request_addr_size = sizeof(c->request_addr);

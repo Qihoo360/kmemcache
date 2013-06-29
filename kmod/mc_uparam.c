@@ -9,8 +9,8 @@ struct cn_id cache_bh_id = {
 	.val = CN_VAL_CACHE_BH
 };
 
-struct settings settings __read_mostly;
-parser_sock_t *sock_info = NULL;
+settings_t settings __read_mostly;
+parser_sock_t sock_info;
 
 static void* default_callback(struct cn_msg *msg,
 			      struct netlink_skb_parms *pm)
@@ -27,7 +27,7 @@ static void* settings_init_callback(struct cn_msg *msg,
 	char *factor = NULL, *inter = NULL, *domain = NULL;
 	settings_init_t *data = (settings_init_t *)msg->data;
 
-	if (!data->len || IS_ERR_OR_NULL(data))
+	if (!data->len)
 		goto err;
 
 	/* parse slab allocator's factor */
@@ -38,7 +38,7 @@ static void* settings_init_callback(struct cn_msg *msg,
 			PRINTK("alloc slab growth factor error\n");
 			goto err;
 		}
-		memcpy(factor, (char *)str->buf, str->len);
+		memcpy(factor, str->buf, str->len);
 		pos += str->len + sizeof(str_t);
 	}
 
@@ -50,41 +50,47 @@ static void* settings_init_callback(struct cn_msg *msg,
 			PRINTK("alloc listen interface error\n");
 			goto free_factor;
 		}
-		memcpy(inter, (char *)str->buf, str->len);
+		memcpy(inter, str->buf, str->len);
 		pos += str->len + sizeof(str_t);
 	}
 
-	/* parse unix domain path */
 	if (data->flags & UNIX_SOCK) {
-		domain = kzalloc(data->len - pos, GFP_KERNEL);
+		/* parse unix domain path */
+		str = (str_t *)(data->data + pos);
+		domain = kzalloc(str->len + 1, GFP_KERNEL);
 		if (!domain) {
 			PRINTK("alloc unix domain path error\n");
 			goto free_inter;
 		}
-		memcpy(domain, (char *)data->data + pos, data->len - pos - 1);
-	}
+		memcpy(domain, str->buf, str->len);
 
-	/* parse delayed, see mc_dispatcher.c */
-	size = sizeof(parser_sock_t) + data->len - pos;
-	sock_info = kmalloc(size, GFP_KERNEL);
-	if (!sock_info) {
-		PRINTK("alloc socket-parser vectory error\n");
-		goto free_unix;
+		sock_info.flags |= UNIX_SOCK;
+		sock_info.local  = domain;
+	} else if (data->flags & INET_SOCK) {
+		/* parse inet socket */
+		inet_t *inet = (inet_t *)(data->data + pos);
+		size = inet->len + sizeof(inet_t);
+
+		sock_info.inet = kmalloc(size, GFP_KERNEL);
+		if (!sock_info.inet) {
+			PRINTK("alloc inet socket error\n");
+			goto free_inter;
+		}
+		memcpy(sock_info.inet, inet, size);
+		sock_info.flags |= INET_SOCK;
+	} else {
+		PRINTK("no sock type defined\n");
+		goto free_inter;
 	}
-	sock_info->flags = data->flags;
-	sock_info->len = data->len - pos;
-	memcpy(sock_info->data, data->data + pos, data->len - pos);
 
 	/* init struct settings */
-	memcpy(&settings, data, sizeof(settings));
+	memcpy(&settings, &data->base, sizeof(settings_t));
 	settings.factor	    = factor;
 	settings.inter	    = inter;
 	settings.socketpath = domain;
 
 	return &settings;
 
-free_unix:
-	kfree(domain);
 free_inter:
 	kfree(inter);
 free_factor:
@@ -122,8 +128,8 @@ out:
 
 void __settings_exit(void)
 {
-	if (sock_info)
-		kfree(sock_info);
+	if (sock_info.flags & INET_SOCK)
+		kfree(sock_info.inet);
 }
 
 void settings_exit(void)
@@ -140,7 +146,7 @@ static void* user_env_callback(struct cn_msg *msg,
 	ack_env_t *penv = (ack_env_t *)msg->data;
 
 	union {
-		char		*_str;
+		str_t		*_str;
 		int		*_int;
 		unsigned long 	*_ul;
 	} data;
@@ -153,6 +159,19 @@ static void* user_env_callback(struct cn_msg *msg,
 	case T_MEMD_SLABS_LIMIT:
 		data._int = (int *)penv->data;
 		res = (void *)(long)*data._int;
+		break;
+	case MEMCACHED_PORT_FILENAME:
+		data._str = (str_t *)penv->data;
+		if (data._str->len == 0) {
+			res = NULL;
+		} else {
+			res = kzalloc(data._str->len + 1, GFP_KERNEL);
+			if (!res) {
+				PRINTK("alloc port_filename env vector error\n");
+				break;
+			}
+			memcpy(res, data._str->buf, data._str->len);
+		}
 		break;
 	default:
 		WARN(1, "not define environment: %d\n", penv->env);
@@ -180,12 +199,12 @@ void* user_env(ask_env_t env)
 
 	ret = mc_add_callback(&msg->id, user_env_callback, 1);
 	if (unlikely(ret)) {
-		PRINTK("add settings init callback error\n");
+		PRINTK("add user_env callback error\n");
 		goto out;
 	}
 	res = mc_send_msg_timeout(msg, msecs_to_jiffies(timeout * 1000));
 	if (IS_ERR(res)) {
-		PRINTK("send settings init error\n");
+		PRINTK("send ask user_env error\n");
 		res = NULL;
 	}
 

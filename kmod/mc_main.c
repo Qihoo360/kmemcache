@@ -239,10 +239,10 @@ out:
 
 	__settings_exit();
 	if (ret) {
-		sock_info = (void *)-1;
+		sock_info.status = FAILURE;
 		PRINTK("start server error\n");
 	} else {
-		sock_info = (void *)1;
+		sock_info.status = SUCCESS;
 		PRINTK("start server success\n");
 	}
 	report_cache_bh_status(ret == 0);
@@ -301,7 +301,7 @@ out:
 
 static void __exit kmemcache_exit(void)
 {
-	if (sock_info == (void *)1) {
+	if (sock_info.status == SUCCESS) {
 		dispatcher_exit();
 		timer_exit();
 		stop_hash_thread();
@@ -315,7 +315,7 @@ static void __exit kmemcache_exit(void)
 		oom_exit();
 
 		PRINTK("stop server success\n");
-	} else if (sock_info == NULL) {
+	} else if (sock_info.status != FAILURE) {
 		unregister_kmemcache_bh();
 	}
 	connector_exit();

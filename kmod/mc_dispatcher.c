@@ -479,71 +479,35 @@ free_sock:
 	goto out;
 }
 
-#define VALID_TRANS(x) ((x) == tcp_transport || (x) == udp_transport)
-
-static char* parse_port_file(char *data, int len)
-{
-	char *end = data + len;
-	int selen = sizeof(sock_entry_t);
-	sock_entry_t *se = (sock_entry_t *)data;
-
-	if (*(end - 1) != '\0')
-		return NULL;
-
-	do {
-		if (VALID_TRANS(se->trans)) {
-			data += selen + se->addrlen;
-			se = (sock_entry_t *)data;
-		}
-		if (!VALID_TRANS(se->trans)) {
-			break;
-		}
-	} while (data + selen + se->addrlen <= end);
-
-	if (data >= end || VALID_TRANS(se->trans))
-		return NULL;
-
-	return data;
-}
-
-static int server_inet_init(void)
+static int server_inet_init(inet_t *inet)
 {
 	int success = 0;
-	char *path, *data = sock_info->data;
-	int selen = sizeof(sock_entry_t);
-	sock_entry_t *se = (sock_entry_t *)data;
+	char *path = NULL, *pos;
 	struct file *filp = NULL;
+	sock_entry_t *se = (sock_entry_t *)inet->buf;
 
-	if (sock_info->flags & PORT_FILE) {
-		path = parse_port_file(sock_info->data, sock_info->len);
-		if (!path) {
-			PRINTK("parse socket port file error\n");
-			goto out;
-		}
+	path = (char *)user_env(MEMCACHED_PORT_FILENAME);
+	if (path != NULL) {
 		filp = filp_open(path, O_RDWR | O_APPEND | O_CREAT,
 				 S_IRUGO | S_IWUGO);
 		if (IS_ERR(filp)) {
 			PRINTK("open socket port file error\n");
 			goto out;
 		}
-	} else {
-		path = data + sock_info->len;
 	}
 
-	for (; data + selen + se->addrlen <= path;) {
-		if (VALID_TRANS(se->trans) &&
-		    !server_socket_inet(se, filp)) {
+	for (; (char *)se < (char *)inet->buf + inet->len;) {
+		if (!server_socket_inet(se, filp))
 			success++;
-		}
-		data += selen + se->addrlen;
-		se = (sock_entry_t *)data;
+		pos = (char *)se + sizeof(sock_entry_t) + se->addrlen;
+		se = (sock_entry_t *)pos;
 	}
 
-	if (filp) {
+	if (filp != NULL)
 		filp_close(filp, NULL);
-	}
 
 out:
+	kfree(path);
 	return (success ? 0 : -EFAULT);
 }
 
@@ -668,14 +632,16 @@ static int server_init(void)
 {
 	int ret = 0;
 
-	if (unlikely(!sock_info))
+	if (unlikely(!(sock_info.flags & (UNIX_SOCK | INET_SOCK))))
 		return -EFAULT;
 
-	if (sock_info->flags & UNIX_SOCK) {
-		ret = server_socket_unix((char *)sock_info->data,
+	if (sock_info.flags & UNIX_SOCK) {
+		ret = server_socket_unix(sock_info.local,
 					 settings.access);
+	} else if (sock_info.flags & INET_SOCK) {
+		ret = server_inet_init(sock_info.inet);
 	} else {
-		ret = server_inet_init();
+		ret = -EFAULT;
 	}
 
 	return ret;

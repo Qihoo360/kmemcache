@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
+#include <string.h>
 #include "umemcached.h"
 
 int netlink_send_env(int sock, struct cn_msg *rcv)
@@ -12,7 +13,7 @@ int netlink_send_env(int sock, struct cn_msg *rcv)
 	char buf[KMC_V_ACK_ENV + PATH_MAX];
 
 	union {
-		char		*_str;
+		str_t		*_str;
 		int		*_int; 
 		unsigned long 	*_ul;
 	} data;
@@ -45,6 +46,17 @@ int netlink_send_env(int sock, struct cn_msg *rcv)
 			*data._int = 0;
 		}
 		snd->len = sizeof(ack_env_t) + sizeof(int);
+		break;
+	case MEMCACHED_PORT_FILENAME:
+		data._str = (str_t *)ack->data;
+		env = getenv("MEMCACHED_PORT_FILENAME");
+		if (env) {
+			data._str->len = strlen(env);
+			memcpy(data._str->buf, env, data._str->len);
+		} else {
+			data._str->len = 0;
+		}
+		snd->len = sizeof(ack_env_t) + data._str->len;
 		break;
 	default:
 		printf("kernel env error\n");
