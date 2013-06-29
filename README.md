@@ -69,7 +69,7 @@ Building, Running & Testing
 
 5.3 Case 3, using perl scripts
 
-	[root@linux]# ./t/00-startup.t
+	[root@linux]# ./t/auto.pl
 
 5.4 More cases refer to memcached
 
