@@ -19,8 +19,9 @@ print $sock "set foo 0 0 6\r\nfooval\r\n";
 is(scalar <$sock>, "STORED\r\n", "stored foo");
 mem_get_is($sock, "foo", "fooval");
 
-unlink($filename);
-
+$sock->close();
 stop_kmemcache();
+
+unlink($filename);
 
 ## Just some basic stuff for now...
