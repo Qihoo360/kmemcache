@@ -305,6 +305,10 @@ static void mc_nl_callback(struct sk_buff *_skb)
 		}
 	}
 	spin_unlock_bh(&queue->lock);
+	
+	if (unlikely(&entry->list_entry == &queue->list)) {
+		kfree_skb(skb);
+	}
 
 	return;
 
