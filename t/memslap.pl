@@ -13,12 +13,11 @@ my ($server, $test, $prefix) = @ARGV;
 printf("server=%s test=%s outputfix=%s\n", $server, $test, $prefix);
 
 if ($test eq 'get') {
-	for ($conn = 1000; $conn <= 10000; $conn += 1000) {
+	for ($conn = 1000; $conn <= 10000; $conn += 500) {
 		memslap($conn, 1000);
 	}
 } elsif ($test eq 'set') {
-	print "set set set";
-	for ($conn = 1000; $conn <= 10000; $conn += 1000) {
+	for ($conn = 1000; $conn <= 10000; $conn += 500) {
 		for ($num = 1000; $num <= 10000; $num += 1000) {
 			memslap($conn, $num);
 		}
