@@ -223,7 +223,7 @@ static void* __send_msg_sync(struct cn_msg *msg, unsigned long timeout)
 				     NETLINK_MEMCACHE_GRP,
 				     GFP_KERNEL))) {
 		PRINTK("netlink broadcast error\n");
-		goto out;
+		goto nlmsg_failure;
 	}
 
 	if (unlikely(!timeout)) {
