@@ -274,7 +274,7 @@ static pid_t start_server(in_port_t *port_out, int timeout) {
          argv[arg++] = "-vvv";
 #endif
         argv[arg++] = NULL;
-	insert_kmod("./kmod/kmemcache");
+	insert_kmod("./kmod/kmemcache.ko");
 	close_terminal();
         assert(execv(argv[0], argv) != -1);
     } else {
